@@ -1,0 +1,218 @@
+import { useState } from "react";
+import reactLogo from "./assets/react.svg";
+import viteLogo from "/vite.svg";
+import "./App.css";
+
+import * as Ethers from "ethers";
+import * as Webauthn from "@passwordless-id/webauthn";
+
+import * as WebauthnBrowser from "@simplewebauthn/browser";
+import * as WebauthnServer from "@simplewebauthn/server";
+import * as WebauthnTypes from "@simplewebauthn/typescript-types";
+
+// import { register } from "@passwordless-id/webauthn/dist/esm/client";
+
+const PASSKEY_NAME = "irara";
+
+interface LoggedInUser {
+  id: string;
+  username: string;
+  devices: WebauthnTypes.AuthenticatorDevice[];
+}
+
+interface LoggedInFIDOUser extends LoggedInUser {
+  currentAuthenticationUserVerification?: UserVerificationRequirement;
+}
+
+export const WebauthnApp = () => {
+  const [count, setCount] = useState(0);
+  const [balance, setBalance] = useState<BigInt>(BigInt(0));
+
+  const handleValidatePasskey = async () => {
+    const credential = await navigator.credentials.get({
+      publicKey: {
+        // don't do this in production!
+        challenge: new Uint8Array([1, 2, 3, 4]),
+      },
+      mediation: "conditional",
+    });
+
+    if (credential) {
+      let username = String.fromCodePoint(
+        ...new Uint8Array(credential.response.userHandle)
+      );
+      window.location = "site.html?username=" + username;
+    } else {
+      showError("Credential returned null");
+    }
+
+    console.log(`Auth: ${JSON.stringify(auth, null, 2)}`);
+  };
+
+  const handleCreatePasskey = async () => {
+    const isAvailable = Webauthn.client.isAvailable();
+    console.log(`Is WebAuthN available? ${isAvailable}`);
+
+    // ------------------------------------
+    // const challenge = "a7c61ef9-dc23-4806-b486-2428938a547e";
+    // const registration = await Webauthn.client.register("Irara", challenge, {
+    //   authenticatorType: "auto", // 'auto' | 'local' | 'extern' | 'roaming' | 'both';
+    //   userVerification: "required", // "discouraged" | "preferred" | "required";
+    //   timeout: 60000,
+    //   attestation: false,
+    //   userHandle: "recommended to set it to a random 64 bytes value",
+    //   debug: false,
+    // });
+    // console.log(`Registration: ${JSON.stringify(registration, null, 2)}`);
+
+    // ------------------------------------------------------------
+    // const rpName = "SimpleWebAuthn Example";
+    // const rpID = "localhost";
+    // const user: LoggedInFIDOUser = {
+    //   id: "internalUserId",
+    //   username: `user@${rpID}`,
+    //   devices: [],
+    // };
+    // const userAuthenticators = user.devices;
+
+    // // Node 和 React 可能環境不一樣
+    // const options = await WebauthnServer.generateRegistrationOptions({
+    //   rpName,
+    //   rpID,
+    //   userID: user.id,
+    //   userName: user.username,
+    //   // Don't prompt users for additional information about the authenticator
+    //   // (Recommended for smoother UX)
+    //   attestationType: "none",
+    //   // Prevent users from re-registering existing authenticators
+    //   excludeCredentials: userAuthenticators.map((authenticator) => ({
+    //     id: authenticator.credentialID,
+    //     type: "public-key",
+    //     // Optional
+    //     transports: authenticator.transports,
+    //   })),
+    // });
+    // console.log(`Options: ${JSON.stringify(options, null, 2)}`);
+
+    // const reg = await WebauthnBrowser.startRegistration(options);
+    // console.log(`Registration: ${JSON.stringify(reg, null, 2)}`);
+
+    // ------------------------------------------------------------
+
+    // 產 key > Signature
+    const randomStringFromServer = "a7c61ef9-dc23-4806-b486-2428938a547e";
+
+    const rpName: string = "Duo Security";
+    const rpId: string = "localhost";
+
+    const userId: string = "UZSL85T9AFC";
+    const userName: string = `user@${rpId}`;
+    const userDisplayName: string = "Lee";
+
+    const publicKeyCredentialType: PublicKeyCredentialType = "public-key";
+    const authenticatorAttachment: AuthenticatorAttachment = "platform";
+    const attestation: AttestationConveyancePreference = "direct";
+
+    // const publicKeyCredentialCreationOptions = {
+    //   challenge: Uint8Array.from(randomStringFromServer, (c) =>
+    //     c.charCodeAt(0)
+    //   ),
+    //   rp: {
+    //     name: rpName,
+    //     id: rpId,
+    //   },
+    //   user: {
+    //     id: Uint8Array.from(userId, (c) => c.charCodeAt(0)),
+    //     name: userName,
+    //     displayName: userDisplayName,
+    //   },
+    //   pubKeyCredParams: [
+    //     { alg: -7, type: publicKeyCredentialType },
+    //   ] as PublicKeyCredentialParameters[],
+    //   authenticatorSelection: {
+    //     authenticatorAttachment: authenticatorAttachment,
+    //   },
+    //   timeout: 60000,
+    //   attestation: attestation,
+    // };
+
+    // const credential = (await navigator.credentials.create({
+    //   publicKey: publicKeyCredentialCreationOptions,
+    // })) as PublicKeyCredential;
+    // // Pass
+    // console.log(`Credential Id: ${credential?.id}`);
+    // console.log(`Credential Type: ${credential?.type}`);
+    // console.log(`Credential RawId: ${credential?.rawId}`);
+    // console.log(`Credential Response: ${credential?.response}`);
+
+    const reg = await WebauthnBrowser.startRegistration({
+      challenge: randomStringFromServer,
+      rp: {
+        name: rpName,
+        id: rpId,
+      },
+      user: {
+        id: userId,
+        name: userName,
+        displayName: userDisplayName,
+      },
+      pubKeyCredParams: [
+        { alg: -7, type: publicKeyCredentialType },
+      ] as PublicKeyCredentialParameters[],
+    });
+    console.log(`Registration: ${JSON.stringify(reg, null, 2)}`);
+
+    // const auth = await WebauthnBrowser.startAuthentication({
+    //   challenge: randomStringFromServer,
+    //   // rpId: rpId,
+    //   // allowCredentials: [
+    //   //   {
+    //   //     // Credential ID is obtained after credential creation in the registration phase.
+    //   //     id: reg.id,
+    //   //     type: "public-key",
+    //   //     transports: ["usb", "ble", "nfc"],
+    //   //   },
+    //   // ],
+    // });
+
+    // ------------------------------------------------------------
+  };
+
+  return (
+    <>
+      <div>
+        <a href="https://vitejs.dev" target="_blank">
+          <img src={viteLogo} className="logo" alt="Vite logo" />
+        </a>
+        <a href="https://react.dev" target="_blank">
+          <img src={reactLogo} className="logo react" alt="React logo" />
+        </a>
+      </div>
+      <h1>Vite + React</h1>
+      <div className="card">
+        <button onClick={() => setCount((count) => count + 1)}>
+          count is {count}
+        </button>
+        <p>
+          Edit <code>src/App.tsx</code> and save to test HMR
+        </p>
+      </div>
+      <p className="read-the-docs">
+        Click on the Vite and React logos to learn more
+      </p>
+      <div>
+        <button onClick={handleCreatePasskey}>Create Passkey</button>
+      </div>
+      <div>
+        <button onClick={handleValidatePasskey}>Validate Passkey</button>
+      </div>
+      <div>
+        <span>{`${import.meta.env.VITE_PROVIDER}`}</span>
+      </div>
+      <div>
+        <span>{`${balance}`}</span>
+      </div>
+      <h1 className="text-3xl font-bold underline">Hello world!</h1>
+    </>
+  );
+};

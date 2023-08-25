@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=19 <20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -12,11 +15,16 @@
   "dependencies": {
     "@account-abstraction/contracts": "^0.6.0",
     "@chainlink/contracts": "^0.6.1",
+    "@hexagon/base64": "^1.1.27",
     "@openzeppelin/contracts": "^4.9.3",
     "@passwordless-id/webauthn": "^1.2.6",
-    "@rize-labs/banana-passkey-manager": "^1.0.1",
+    "@simplewebauthn/browser": "^8.0.2",
+    "@simplewebauthn/server": "^8.0.1",
+    "@simplewebauthn/typescript-types": "^8.0.0",
     "@uniswap/v3-periphery": "^1.4.3",
-    "ethers": "5.7.2",
+    "axios": "^1.4.0",
+    "cbor-x": "^1.5.4",
+    "ethers": "^6.7.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
@@ -26,9 +34,12 @@
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "@vitejs/plugin-react-swc": "^3.3.2",
+    "autoprefixer": "^10.4.15",
     "eslint": "^8.45.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.3",
+    "postcss": "^8.4.28",
+    "tailwindcss": "^3.3.3",
     "typescript": "^5.0.2",
     "vite": "^4.4.5"
   }

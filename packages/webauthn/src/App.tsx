@@ -3,27 +3,29 @@ import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
 import "./App.css";
 
-import * as Ethers5 from "ethers";
-import * as BananaPasskeyManager from "@rize-labs/banana-passkey-manager";
+import * as Ethers from "ethers";
+import * as Webauthn from "@passwordless-id/webauthn";
 
-const PASSKEY_NAME = "<irara>";
+import * as WebauthnBrowser from "@simplewebauthn/browser";
+import * as WebauthnServer from "@simplewebauthn/server";
+import * as WebauthnTypes from "@simplewebauthn/typescript-types";
+
+// import { register } from "@passwordless-id/webauthn/dist/esm/client";
+
+const PASSKEY_NAME = "irara";
+
+interface LoggedInUser {
+  id: string;
+  username: string;
+  devices: WebauthnTypes.AuthenticatorDevice[];
+}
+
+interface LoggedInFIDOUser extends LoggedInUser {
+  currentAuthenticationUserVerification?: UserVerificationRequirement;
+}
 
 function App() {
   const [count, setCount] = useState(0);
-  const [balance, setBalance] = useState<Ethers5.BigNumber>(
-    Ethers5.BigNumber.from(0)
-  );
-
-  const handleCreatePasskey = async () => {
-    const passkeyProvider = new Ethers5.providers.JsonRpcProvider(
-      import.meta.env.VITE_PROVIDER
-    );
-    const passkeyInstance = new BananaPasskeyManager.BananaPasskeyEoaSigner(
-      passkeyProvider
-    );
-    await passkeyInstance.init(PASSKEY_NAME);
-    setBalance(await passkeyInstance.getBalance());
-  };
 
   return (
     <>
@@ -47,15 +49,9 @@ function App() {
       <p className="read-the-docs">
         Click on the Vite and React logos to learn more
       </p>
-      <div>
-        <button onClick={handleCreatePasskey}>Passkey Test</button>
-      </div>
-      <div>
-        <span>{`${import.meta.env.VITE_PROVIDER}`}</span>
-      </div>
-      <div>
-        <span>{`${balance}`}</span>
-      </div>
+      <h1 className="text-3xl font-bold underline">
+        Hello, TailwindCSS world!
+      </h1>
     </>
   );
 }
