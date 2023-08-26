@@ -10,12 +10,13 @@ import * as Helpers from "./helpers/helpers";
 
 import Axios from "axios";
 
-import * as Mnemonic from "./mnemonic";
-
-import * as WebauthnPass from "@passwordless-id/webauthn";
 import * as WebauthnBrowser from "@simplewebauthn/browser";
 import * as WebauthnServer from "@simplewebauthn/server";
 import * as WebauthnTypes from "@simplewebauthn/typescript-types";
+
+// 此套件沒有更進一步解析 authData
+// https://github.com/passwordless-id/webauthn/blob/main/src/authenticators.ts#L33-L41
+import * as WebauthnPass from "@passwordless-id/webauthn";
 
 const url = "http://localhost:5173";
 
@@ -80,6 +81,10 @@ export const WebauthnApp = () => {
   const [encodedId, setEncodedId] = React.useState<string>("");
   const [message, setMessage] = React.useState<string>("");
 
+  // --------------------
+  // -- Create Passkey --
+  // --------------------
+
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-registration
   const handleCreatePasskey = React.useCallback(async () => {
     // The challenge is produced by the server; see the Security Considerations
@@ -127,10 +132,18 @@ export const WebauthnApp = () => {
 
     console.log(`Registration Response: ${JSON.stringify(regResp, null, 2)}`);
 
+    // ------------------------------
+    // -- Parse Authenticator Data --
+    // ------------------------------
+
     const attestationObject = regResp.response.attestationObject;
+    console.log(`attestationObject: ${JSON.stringify(attestationObject)}`);
+
+    const attestationObjectArray =
+      Helpers.IsoBase64URL.toBuffer(attestationObject);
 
     const decodedAttestationObject = Helpers.decodeAttestationObject(
-      Helpers.IsoBase64URL.toBuffer(attestationObject)
+      attestationObjectArray
     );
 
     const authData = decodedAttestationObject.get("authData");
@@ -139,8 +152,6 @@ export const WebauthnApp = () => {
     console.log(
       `Parsed Authenticator Data: ${JSON.stringify(parsedAuthData, null, 2)}`
     );
-
-    console.log(`attestationObject: ${JSON.stringify(attestationObject)}`);
 
     const rpIdHash = Helpers.IsoBase64URL.fromBuffer(parsedAuthData.rpIdHash);
     console.log(`RP ID Hash: ${rpIdHash}`);
@@ -166,18 +177,121 @@ export const WebauthnApp = () => {
     );
     console.log(`Credential Public Key: ${credentialPublicKey}`);
 
+    const credentialPublicKeyKty = parsedAuthData.credentialPublicKeyKty;
+    console.log(`Credential Public Key Kty: ${credentialPublicKeyKty}`);
+
+    const credentialPublicKeyAlg = parsedAuthData.credentialPublicKeyAlg;
+    console.log(`Credential Public Key Alg: ${credentialPublicKeyAlg}`);
+
+    const credentialPublicKeyCrv = parsedAuthData.credentialPublicKeyCrv;
+    console.log(`Credential Public Key Crv: ${credentialPublicKeyCrv}`);
+
     const credentialPublicKeyX = Helpers.IsoBase64URL.fromBuffer(
       parsedAuthData.credentialPublicKeyX!
     );
-    console.log(`Credential Public Key X: ${credentialPublicKeyX}`);
+    const credentialPublicKeyXHex = `0x${Helpers.IsoUint8Array.toHex(
+      parsedAuthData.credentialPublicKeyX!
+    )}`;
+    console.log(
+      `Credential Public Key X:\n${credentialPublicKeyX}\n${credentialPublicKeyXHex}`
+    );
 
     const credentialPublicKeyY = Helpers.IsoBase64URL.fromBuffer(
       parsedAuthData.credentialPublicKeyY!
     );
-    console.log(`Credential Public Key Y: ${credentialPublicKeyY}`);
+    const credentialPublicKeyYHex = `0x${Helpers.IsoUint8Array.toHex(
+      parsedAuthData.credentialPublicKeyY!
+    )}`;
+    console.log(
+      `Credential Public Key Y:\n${credentialPublicKeyY}\n${credentialPublicKeyYHex}`
+    );
+
+    // --------------------------
+    // -- Banana Wallet Server --
+    // 1. response.data.message.encodedId = regResp.id = regResp.rawId = Helpers.IsoBase64URL.fromBuffer(parsedAuthData.credentialID!)
+    // 2. response.data.message.q0hexString = `0x${Helpers.IsoUint8Array.toHex(parsedAuthData.credentialPublicKeyX!)}`
+    // 3. response.data.message.q1hexString = `0x${Helpers.IsoUint8Array.toHex(parsedAuthData.credentialPublicKeyY!)}`
+    // --------------------------
+
+    const REGISTRATION_LAMBDA_URL =
+      "https://8zfpr8iyag.execute-api.us-east-1.amazonaws.com/extract_qvalues";
+
+    const attestationObjectBuffer =
+      Helpers.base64URLStringToBuffer(attestationObject);
+
+    const rawIdBuffer = Helpers.base64URLStringToBuffer(regResp.rawId);
+
+    // const response = await Axios({
+    //   url: REGISTRATION_LAMBDA_URL,
+    //   method: "post",
+    //   params: {
+    //     aObject: JSON.stringify(
+    //       Array.from(new Uint8Array(attestationObjectBuffer))
+    //     ),
+
+    //     rawId: JSON.stringify(
+    //       //@ts-ignore
+    //       Array.from(new Uint8Array(rawIdBuffer))
+    //     ),
+    //   },
+    // });
+
+    // console.log(`Banana response: ${response}`);
+    // console.log(`Banana response: ${JSON.stringify(response, null, 2)}`);
+
+    // console.log(`Banana response data: ${response.data}`);
+    // console.log(
+    //   `Banana response data: ${JSON.stringify(response.data, null, 2)}`
+    // );
+
+    // console.log(`Banana response data message: ${response.data.message}`);
+    // console.log(
+    //   `Banana response data message: ${JSON.stringify(
+    //     response.data.message,
+    //     null,
+    //     2
+    //   )}`
+    // );
+
+    // console.log(
+    //   `Banana response data message q0hexString: ${response.data.message.q0hexString}`
+    // );
+    // console.log(
+    //   `Banana response data message q0hexString: ${JSON.stringify(
+    //     response.data.message.q0hexString,
+    //     null,
+    //     2
+    //   )}`
+    // );
+
+    // console.log(
+    //   `Banana response data message q1hexString: ${response.data.message.q1hexString}`
+    // );
+    // console.log(
+    //   `Banana response data message q1hexString: ${JSON.stringify(
+    //     response.data.message.q1hexString,
+    //     null,
+    //     2
+    //   )}`
+    // );
+
+    // console.log(
+    //   `Banana response data message encodedId: ${response.data.message.encodedId}`
+    // );
+    // console.log(
+    //   `Banana response data message encodedId: ${JSON.stringify(
+    //     response.data.message.encodedId,
+    //     null,
+    //     2
+    //   )}`
+    // );
 
     // ...
   }, [user]);
+
+  // -----------------
+  // -- Get Passkey --
+  // -----------------
 
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-authentication
   const handleGetPasskey = async () => {
@@ -193,9 +307,58 @@ export const WebauthnApp = () => {
       `Authentication Response: ${JSON.stringify(authResp, null, 2)}`
     );
 
-    // const clientDataJSON = decodeClientDataJSON(
-    //   authResp.response.clientDataJSON
-    // );
+    const authenticatorData = authResp.response.authenticatorData;
+    console.log(`Authenticator Data: ${authenticatorData}`);
+
+    const authDataBuffer = Helpers.IsoBase64URL.toBuffer(authenticatorData);
+
+    const parsedAuthData = Helpers.parseAuthenticatorData(authDataBuffer);
+    console.log(
+      `Parsed Authenticator Data: ${JSON.stringify(parsedAuthData, null, 2)}`
+    );
+
+    const rpIdHash = Helpers.IsoBase64URL.fromBuffer(parsedAuthData.rpIdHash);
+    console.log(`RP ID Hash: ${rpIdHash}`);
+
+    const flagsBuf = Helpers.IsoBase64URL.fromBuffer(parsedAuthData.flagsBuf);
+    console.log(`Flags Buf: ${flagsBuf}`);
+
+    const counterBuf = Helpers.IsoBase64URL.fromBuffer(
+      parsedAuthData.counterBuf
+    );
+    console.log(`Counter Buf: ${counterBuf}`);
+
+    const aaguid = Helpers.IsoBase64URL.fromBuffer(parsedAuthData.aaguid!);
+    console.log(`AAGUID: ${aaguid}`);
+
+    const credentialID = Helpers.IsoBase64URL.fromBuffer(
+      parsedAuthData.credentialID!
+    );
+    console.log(`Credential ID: ${credentialID}`);
+
+    const credentialPublicKey = Helpers.IsoBase64URL.fromBuffer(
+      parsedAuthData.credentialPublicKey!
+    );
+    console.log(`Credential Public Key: ${credentialPublicKey}`);
+
+    const credentialPublicKeyKty = parsedAuthData.credentialPublicKeyKty;
+    console.log(`Credential Public Key Kty: ${credentialPublicKeyKty}`);
+
+    const credentialPublicKeyAlg = parsedAuthData.credentialPublicKeyAlg;
+    console.log(`Credential Public Key Alg: ${credentialPublicKeyAlg}`);
+
+    const credentialPublicKeyCrv = parsedAuthData.credentialPublicKeyCrv;
+    console.log(`Credential Public Key Crv: ${credentialPublicKeyCrv}`);
+
+    const credentialPublicKeyX = Helpers.IsoBase64URL.fromBuffer(
+      parsedAuthData.credentialPublicKeyX!
+    );
+    console.log(`Credential Public Key X: ${credentialPublicKeyX}`);
+
+    const credentialPublicKeyY = Helpers.IsoBase64URL.fromBuffer(
+      parsedAuthData.credentialPublicKeyY!
+    );
+    console.log(`Credential Public Key Y: ${credentialPublicKeyY}`);
 
     // ...
   };
@@ -225,6 +388,37 @@ export const WebauthnApp = () => {
     console.log(`Input: ${id} = ${value}`);
   };
 
+  const handleCoordinateHex = async () => {
+    // From Simple WebAuthN
+    const coordinateX = "CauffutyexEjW87UlFD-Q1ClONU8PHRBoU3MapT1TxE";
+    const coordinateY = "Xh9vHH63OP11kaZrZHjZmXDiEsAZ8JANP_jLYCCwgm4";
+
+    console.log(`coordinateX: ${coordinateX}`);
+    console.log(`coordinateY: ${coordinateY}`);
+
+    const coordinateXArray = Helpers.IsoBase64URL.toBuffer(coordinateX);
+    const coordinateYArray = Helpers.IsoBase64URL.toBuffer(coordinateY);
+
+    const coordinateXHex = `0x${Helpers.IsoUint8Array.toHex(coordinateXArray)}`;
+    const coordinateYHex = `0x${Helpers.IsoUint8Array.toHex(coordinateYArray)}`;
+
+    console.log(`coordinateXHex: ${coordinateXHex}`);
+    console.log(`coordinateYHex: ${coordinateYHex}`);
+
+    // From Banana Server
+    const encodedId = "z8V8lGBTAru0o5yfA_XzS8p8ofuNMJAfjc52z6-ZFGQ";
+    const q0hexString =
+      "0x09ab9f7eeb727b11235bced49450fe4350a538d53c3c7441a14dcc6a94f54f11";
+    const q1hexString =
+      "0x5e1f6f1c7eb738fd7591a66b6478d99970e212c019f0900d3ff8cb6020b0826e";
+
+    console.log(
+      `${coordinateXHex === q0hexString} & ${coordinateYHex === q1hexString}`
+    );
+
+    // ...
+  };
+
   return (
     <>
       <div>
@@ -251,6 +445,15 @@ export const WebauthnApp = () => {
           Validate Passkey
         </button>
       </div>
+      <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+        <button
+          onClick={handleCoordinateHex}
+          className="order-2 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
+        >
+          Coordinate to Address
+        </button>
+      </div>
+
       <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
         <input
           type="text"

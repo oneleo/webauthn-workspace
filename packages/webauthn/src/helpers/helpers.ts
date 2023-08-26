@@ -1,7 +1,6 @@
 // 來源：https://github.com/MasterKale/SimpleWebAuthn/tree/master/packages/browser/src/helpers
 
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-import * as Cborx from "cbor-x";
 
 import * as IsoBase64URL from "./iso/isoBase64URL";
 import * as IsoCBOR from "./iso/isoCBOR";
@@ -12,30 +11,76 @@ export * as IsoCBOR from "./iso/isoCBOR";
 export * as IsoUint8Array from "./iso/isoUint8Array";
 
 /**
- * COSE Keys
- *
- * https://www.iana.org/assignments/cose/cose.xhtml#key-common-parameters
- * https://www.iana.org/assignments/cose/cose.xhtml#key-type-parameters
- */
-export enum COSEKEYS {
-  kty = 1,
-  alg = 3,
-  crv = -1,
-  x = -2,
-  y = -3,
-  n = -1,
-  e = -2,
-}
-
-/**
  * COSE Key Types
  *
  * https://www.iana.org/assignments/cose/cose.xhtml#key-type
  */
-export enum COSEKTY {
+export enum COSEKT {
   OKP = 1,
   EC2 = 2,
   RSA = 3,
+  Symmetric = 4,
+  HSSLMS = 5,
+  WalnutDSA = 6,
+}
+
+/**
+ * COSE Key Common Parameters
+ *
+ * https://www.iana.org/assignments/cose/cose.xhtml#key-common-parameters
+ */
+export enum COSEKCP {
+  kty = 1, // Mapping to COSEKT
+  kid = 2,
+  alg = 3, // Mapping to COSEALG
+  key_ops = 4,
+  BaseIV = 5,
+}
+
+/**
+ * COSE Key Type Parameters
+ *
+ * https://www.iana.org/assignments/cose/cose.xhtml#key-type-parameters
+ */
+
+export enum COSEKTP_OKP { // If COSEKCP.kty = COSEKT.OKP
+  crv = -1, // Mapping to COSECRV
+  x = -2,
+  d = -4,
+}
+export enum COSEKTP_EC2 { // If COSEKCP.kty = COSEKT.EC2
+  crv = -1, // Mapping to COSECRV
+  x = -2,
+  y = -3,
+  d = -4,
+}
+export enum COSEKTP_RSA { // If COSEKCP.kty = COSEKT.RSA
+  n = -1,
+  e = -2,
+  d = -3,
+  p = -4,
+  q = -5,
+  dP = -6,
+  dQ = -7,
+  qInv = -8,
+  other = -9,
+  r_i = -10,
+  d_i = -11,
+  t_i = -12,
+}
+export enum COSEKTP_SYMMETRIC { // If COSEKCP.kty = COSEKT.Symmetric
+  k = -1,
+}
+export enum COSEKTP_HSSLMS { // If COSEKCP.kty = COSEKT.HSSLMS
+  pub = -1,
+}
+export enum COSEKTP_WALNUTDSA { // If COSEKCP.kty = COSEKT.WalnutDSA
+  N = -1,
+  q = -2,
+  tvalues = -3,
+  matrix1 = -4,
+  permutation1 = -5,
+  matrix2 = -6,
 }
 
 /**
@@ -43,7 +88,7 @@ export enum COSEKTY {
  *
  * https://www.iana.org/assignments/cose/cose.xhtml#algorithms
  */
-export enum COSEALG {
+export enum COSEALG { // COSEKCP.alg
   ES256 = -7,
   EdDSA = -8,
   ES384 = -35,
@@ -58,13 +103,39 @@ export enum COSEALG {
   RS1 = -65535,
 }
 
+/**
+ * COSE Elliptic Curves
+ *
+ * https://www.iana.org/assignments/cose/cose.xhtml#elliptic-curves
+ */
+
+export enum COSECRV { // COSEKTP_XXX.crv
+  P256 = 1,
+  P384 = 2,
+  P521 = 3,
+  X25519 = 4,
+  X448 = 5,
+  Ed25519 = 6,
+  Ed448 = 7,
+  secp256k1 = 8,
+}
+
 export type COSEPublicKey = {
   // Getters
-  get(key: COSEKEYS.kty): COSEKTY | undefined;
-  get(key: COSEKEYS.alg): COSEALG | undefined;
+  get(key: COSEKCP.kty): COSEKT | undefined;
+  get(key: COSEKCP.alg): COSEALG | undefined;
+  // If COSEKCP.kty = COSEKT.EC2
+  get(key: COSEKTP_EC2.crv): COSECRV | undefined;
+  get(key: COSEKTP_EC2.x): Uint8Array | undefined;
+  get(key: COSEKTP_EC2.y): Uint8Array | undefined;
+
   // Setters
-  set(key: COSEKEYS.kty, value: COSEKTY): void;
-  set(key: COSEKEYS.alg, value: COSEALG): void;
+  set(key: COSEKCP.kty, value: COSEKT): void;
+  set(key: COSEKCP.alg, value: COSEALG): void;
+  // If COSEKCP.kty = COSEKT.EC2
+  set(key: COSEKTP_EC2.crv, value: COSECRV): void;
+  set(key: COSEKTP_EC2.x, value: Uint8Array): void;
+  set(key: COSEKTP_EC2.y, value: Uint8Array): void;
 };
 
 /**
@@ -193,6 +264,9 @@ export function parseAuthenticatorData(
   let aaguid: Uint8Array | undefined = undefined;
   let credentialID: Uint8Array | undefined = undefined;
   let credentialPublicKey: Uint8Array | undefined = undefined;
+  let credentialPublicKeyKty: number | undefined = undefined;
+  let credentialPublicKeyAlg: number | undefined = undefined;
+  let credentialPublicKeyCrv: number | undefined = undefined;
   let credentialPublicKeyX: Uint8Array | undefined = undefined;
   let credentialPublicKeyY: Uint8Array | undefined = undefined;
 
@@ -204,17 +278,17 @@ export function parseAuthenticatorData(
 
     credentialID = authData.slice(pointer, (pointer += credIDLen));
 
-    // get the public key object
-    const publicKeyBytes = authData.slice(pointer);
-    // the publicKeyBytes are encoded again as CBOR
-    const publicKeyObject = Cborx.decode(publicKeyBytes);
-    credentialPublicKeyX = publicKeyObject[COSEKEYS.x];
-    credentialPublicKeyY = publicKeyObject[COSEKEYS.y];
-
     // Decode the next CBOR item in the buffer, then re-encode it back to a Buffer
     const firstDecoded = IsoCBOR.decodeFirst<COSEPublicKey>(
       authData.slice(pointer)
     );
+
+    credentialPublicKeyKty = firstDecoded.get(COSEKCP.kty);
+    credentialPublicKeyAlg = firstDecoded.get(COSEKCP.alg);
+    credentialPublicKeyCrv = firstDecoded.get(COSEKTP_EC2.crv);
+    credentialPublicKeyX = firstDecoded.get(COSEKTP_EC2.x);
+    credentialPublicKeyY = firstDecoded.get(COSEKTP_EC2.y);
+
     const firstEncoded = Uint8Array.from(IsoCBOR.encode(firstDecoded));
 
     credentialPublicKey = firstEncoded;
@@ -246,6 +320,9 @@ export function parseAuthenticatorData(
     aaguid,
     credentialID,
     credentialPublicKey,
+    credentialPublicKeyKty,
+    credentialPublicKeyAlg,
+    credentialPublicKeyCrv,
     credentialPublicKeyX,
     credentialPublicKeyY,
     extensionsData,
@@ -270,6 +347,9 @@ export type ParsedAuthenticatorData = {
   aaguid?: Uint8Array;
   credentialID?: Uint8Array;
   credentialPublicKey?: Uint8Array;
+  credentialPublicKeyKty?: number;
+  credentialPublicKeyAlg?: number;
+  credentialPublicKeyCrv?: number;
   credentialPublicKeyX?: Uint8Array;
   credentialPublicKeyY?: Uint8Array;
   extensionsData?: AuthenticationExtensionsAuthenticatorOutputs;
