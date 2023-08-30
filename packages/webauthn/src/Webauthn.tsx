@@ -156,6 +156,11 @@ export const WebauthnApp = () => {
     const rpIdHash = Helpers.IsoBase64URL.fromBuffer(parsedAuthData.rpIdHash);
     console.log(`RP ID Hash: ${rpIdHash}`);
 
+    const rpIdHashHex = `0x${Helpers.IsoUint8Array.toHex(
+      parsedAuthData.rpIdHash
+    )}`;
+    console.log(`RP ID Hash Hex: ${rpIdHashHex}`);
+
     const flagsBuf = Helpers.IsoBase64URL.fromBuffer(parsedAuthData.flagsBuf);
     console.log(`Flags Buf: ${flagsBuf}`);
 
@@ -172,10 +177,20 @@ export const WebauthnApp = () => {
     );
     console.log(`Credential ID: ${credentialID}`);
 
+    const credentialIDHex = `0x${Helpers.IsoUint8Array.toHex(
+      parsedAuthData.credentialID!
+    )}`;
+    console.log(`Credential ID Hex: ${credentialIDHex}`);
+
     const credentialPublicKey = Helpers.IsoBase64URL.fromBuffer(
       parsedAuthData.credentialPublicKey!
     );
     console.log(`Credential Public Key: ${credentialPublicKey}`);
+
+    const credentialPublicKeyHex = `0x${Helpers.IsoUint8Array.toHex(
+      parsedAuthData.credentialPublicKey!
+    )}`;
+    console.log(`Credential Public Key Hex: ${credentialPublicKeyHex}`);
 
     const credentialPublicKeyKty = parsedAuthData.credentialPublicKeyKty;
     console.log(`Credential Public Key Kty: ${credentialPublicKeyKty}`);
@@ -285,6 +300,7 @@ export const WebauthnApp = () => {
     //     2
     //   )}`
     // );
+    console.log(`hostname: ${window.location.hostname}`); // localhost
 
     // ...
   }, [user]);
@@ -360,10 +376,135 @@ export const WebauthnApp = () => {
     );
     console.log(`Credential Public Key Y: ${credentialPublicKeyY}`);
 
+    // const res = await WebauthnServer.verifyAuthenticationResponse({
+    //   response: authResp,
+    //   expectedChallenge: challenge,
+    //   expectedOrigin: "http://localhost:5173",
+    //   expectedRPID: rpId,
+    //   authenticator: {
+    //     credentialPublicKey: parsedAuthData.credentialPublicKey!,
+    //     credentialID: parsedAuthData.credentialID!,
+    //     counter: parsedAuthData.counter,
+    //   },
+    // });
+    // console.log(`res: ${JSON.stringify(res, null, 2)}`);
     // ...
   };
 
-  const handleSignMessage = React.useCallback(async () => {}, []);
+  const handleSignMessage = React.useCallback(async () => {
+    // challenge = message
+    const challenge = message;
+    const testCredentialId = "ZToBeLvpI3DnfdP-PocXqMIhCX-J2JxYiY0_MeVTpwY";
+
+    const authResp: WebauthnTypes.AuthenticationResponseJSON =
+      await WebauthnBrowser.startAuthentication({
+        allowCredentials: [
+          { id: testCredentialId, type: "public-key" },
+        ] as WebauthnTypes.PublicKeyCredentialDescriptorJSON[],
+        userVerification:
+          "required" as WebauthnTypes.UserVerificationRequirement,
+        challenge: challenge,
+      } as WebauthnTypes.PublicKeyCredentialRequestOptionsJSON);
+
+    const authData = authResp.response.authenticatorData;
+    console.log(`Authenticator Data: ${authData}`);
+
+    const authDataArray = Helpers.IsoBase64URL.toBuffer(authData);
+    const authDataHex = `0x${Helpers.IsoUint8Array.toHex(authDataArray)}`;
+    console.log(`Authenticator Data Hex: ${authDataHex}`);
+
+    const authClientData = authResp.response.clientDataJSON;
+    console.log(`Client Data: ${authClientData}`);
+
+    const authClientDataArray = Helpers.IsoBase64URL.toBuffer(authClientData);
+    const authClientDataHex = `0x${Helpers.IsoUint8Array.toHex(
+      authClientDataArray
+    )}`;
+    console.log(`Client Data Hex: ${authClientDataHex}`);
+
+    const authSig = authResp.response.signature;
+    console.log(`Auth Sig: ${authSig}`);
+
+    const authSigArray = Helpers.IsoBase64URL.toBuffer(authSig);
+    const authSigHex = `0x${Helpers.IsoUint8Array.toHex(authSigArray)}`;
+    console.log(`Auth Sig Hex: ${authSigHex}`);
+
+    // --------------------------
+    // -- Banana Wallet Server --
+    // --------------------------
+    const VERIFICATION_LAMBDA_URL =
+      "https://muw05wa93c.execute-api.us-east-1.amazonaws.com/";
+
+    // let signatureValid = false;
+    // let signature;
+    // while (!signatureValid) {
+    //   signature = await Axios({
+    //     url: VERIFICATION_LAMBDA_URL,
+    //     method: "post",
+    //     params: {
+    //       authDataRaw: JSON.stringify(Array.from(authDataArray)),
+    //       cData: JSON.stringify(Array.from(authClientDataArray)),
+    //       signature: JSON.stringify(Array.from(authSigArray)),
+    //     },
+    //   });
+
+    //   if (signature.data.message.processStatus === "success") {
+    //     signatureValid = true;
+    //   }
+    // }
+
+    // console.log(`Banana response: ${signature}`);
+    // console.log(`Banana response: ${JSON.stringify(signature, null, 2)}`);
+
+    // console.log(`Banana response data: ${signature!.data}`);
+    // console.log(
+    //   `Banana response data: ${JSON.stringify(signature!.data, null, 2)}`
+    // );
+
+    // console.log(`Banana response data message: ${signature!.data.message}`);
+    // console.log(
+    //   `Banana response data message: ${JSON.stringify(
+    //     signature!.data.message,
+    //     null,
+    //     2
+    //   )}`
+    // );
+
+    // console.log(
+    //   `Banana response data message sig: ${
+    //     signature!.data.message.finalSignature
+    //   }`
+    // );
+    // console.log(
+    //   `Banana response data message sig: ${JSON.stringify(
+    //     signature!.data.message.finalSignature,
+    //     null,
+    //     2
+    //   )}`
+    // );
+
+    // ================================
+
+    // creating chain specific instance of banana module
+    const sampleMsg = "Hello World";
+
+    // ================================
+    // const value = authClientDataHex.slice(72, 248);
+    // console.log(`value: ${value}`);
+    // const clientDataJsonRequestId = Ethers.keccak256("0x" + value);
+    // const finalSignatureWithMessage =
+    //   authSigHex + clientDataJsonRequestId.slice(2);
+    // console.log(`finalSignatureWithMessage: ${finalSignatureWithMessage}`);
+
+    // const decoded = Ethers.AbiCoder.defaultAbiCoder().decode(
+    //   ["uint256", "uint256", "uint256"],
+    //   finalSignatureWithMessage
+    // );
+
+    // console.log(`decoded: ${decoded}`);
+
+    // const signedMessage = decoded[2];
+  }, [message]);
 
   enum InputId {
     userName,
@@ -414,6 +555,39 @@ export const WebauthnApp = () => {
 
     console.log(
       `${coordinateXHex === q0hexString} & ${coordinateYHex === q1hexString}`
+    );
+    // ++++++++++++++++++++
+
+    const authSig =
+      "MEYCIQD8xiv6YVIZ2TEgtW7Tgh1faF-R9B3ZdEtIvw9BmF7EZQIhAN6b1L_mqHKyVbaz9MY13NbIWdFlIX5HpQ-IQiFJG8L_";
+    const bananaR =
+      "0xfcc62bfa615219d93120b56ed3821d5f685f91f41dd9744b48bf0f41985ec465";
+    const bananaS =
+      "0xde9bd4bfe6a872b255b6b3f4c635dcd6c859d165217e47a50f884221491bc2ff";
+
+    const authSigArray = Helpers.IsoBase64URL.toBuffer(authSig);
+    const parsedSignature = Helpers.parseEC2Signature(authSigArray);
+
+    const parsedSignatureR = Helpers.bufferToBase64URLString(parsedSignature.r);
+    const parsedSignatureRArray =
+      Helpers.IsoBase64URL.toBuffer(parsedSignatureR);
+    const parsedSignatureRHex = `0x${Helpers.IsoUint8Array.toHex(
+      parsedSignatureRArray
+    )}`;
+
+    console.log(`parsedSignatureRHex: ${parsedSignatureRHex}`);
+
+    const parsedSignatureS = Helpers.bufferToBase64URLString(parsedSignature.s);
+    const parsedSignatureSArray =
+      Helpers.IsoBase64URL.toBuffer(parsedSignatureS);
+    const parsedSignatureSHex = `0x${Helpers.IsoUint8Array.toHex(
+      parsedSignatureSArray
+    )}`;
+
+    console.log(`parsedSignatureSHex: ${parsedSignatureSHex}`);
+
+    console.log(
+      `${parsedSignatureRHex === bananaR} & ${parsedSignatureSHex === bananaS}`
     );
 
     // ...

@@ -109,6 +109,9 @@ contract PasskeyManager is SimpleAccount, IPasskeyManager {
             string memory clientDataJSONPost,
             bytes32 encodedIdHash
         ) = abi.decode(
+                // 因為 userOp 沒有 authenticatorData、encodedIdHash 等欄位
+                // 所以需要想辦法將這些與 challenge（message）有關的參數帶進來
+                // 而其中，r、s 才是真正簽名後的資料
                 userOp.signature,
                 (uint, uint, bytes, string, string, bytes32)
             );
@@ -132,5 +135,21 @@ contract PasskeyManager is SimpleAccount, IPasskeyManager {
             "PM07: Invalid signature"
         );
         return 0;
+    }
+
+    function verifySignature(
+        uint pubKeyX,
+        uint pubKeyY,
+        uint r,
+        uint s,
+        uint message,
+        bytes memory authenticatorData,
+        string memory clientDataJSON
+    ) external view returns (bool) {
+        Passkey memory passKey = Passkey({pubKeyX: pubKeyX, pubKeyY: pubKeyY});
+        require(
+            Secp256r1.Verify(passKey, r, s, uint(message)),
+            "PM07: Invalid signature"
+        );
     }
 }
