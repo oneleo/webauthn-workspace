@@ -6,6 +6,12 @@ import "./core/PasskeyVerificationLibrary.sol";
 import "./utils/Base64.sol";
 
 contract VerifyPasskey {
+    function base64(
+        bytes32 input
+    ) external pure returns (string memory output) {
+        return Base64.encode(bytes.concat(input));
+    }
+
     function verifySignature(
         uint256 pubKeyX,
         uint256 pubKeyY,

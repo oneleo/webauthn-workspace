@@ -476,10 +476,8 @@ export const WebauthnApp = () => {
     // parsedAuthData.credentialPublicKeyY = undefined
 
     // parse clientDataJSON
-    const parsedClientDataJSON = Helpers.splitClientDataJSONWithByte32Challenge(
-      clientDataJSONRaw,
-      "http://localhost:5173"
-    );
+    const parsedClientDataJSON =
+      Helpers.splitClientDataJSONUtf8(clientDataJSONRaw);
     // log("parsedClientDataJSON", parsedClientDataJSON);
 
     log("clientDataJSONPreRaw", parsedClientDataJSON.clientDataJSONPre);
@@ -659,8 +657,14 @@ export const WebauthnApp = () => {
     const challengeCreate = Ethers.keccak256("0x1234");
     log("challengeCreate", challengeCreate);
 
+    const challengeCreateBase64 = Helpers.hexToBase64URLString(challengeCreate);
+    log("challengeCreateBase64", challengeCreateBase64);
+
     const challengeGet = Ethers.keccak256("0x5678");
     log("challengeGet", challengeGet);
+
+    const challengeGetBase64 = Helpers.hexToBase64URLString(challengeGet);
+    log("challengeGetBase64", challengeGetBase64);
 
     // User
     const userDisplayName = user;
@@ -686,7 +690,7 @@ export const WebauthnApp = () => {
           name: userName,
           displayName: userDisplayName,
         },
-        challenge: challengeCreate.slice(2),
+        challenge: challengeCreateBase64,
         pubKeyCredParams: [
           { alg: pubKeyCredAlgEs256, type: pubKeyCredType },
           { alg: pubKeyCredAlgRs256, type: pubKeyCredType },
@@ -799,7 +803,7 @@ export const WebauthnApp = () => {
         ] as WebauthnTypes.PublicKeyCredentialDescriptorJSON[],
         userVerification:
           "required" as WebauthnTypes.UserVerificationRequirement,
-        challenge: challengeGet.slice(2),
+        challenge: challengeGetBase64,
       } as WebauthnTypes.PublicKeyCredentialRequestOptionsJSON);
 
     // 取得 authenticatorData
@@ -837,10 +841,7 @@ export const WebauthnApp = () => {
     log("clientDataJSONHex", clientDataJSONHex);
 
     const { clientDataJSONPre, clientDataJSONChallenge, clientDataJSONPost } =
-      Helpers.splitClientDataJSONWithByte32Challenge(
-        clientDataJSONUtf8,
-        "http://localhost:5173"
-      );
+      Helpers.splitClientDataJSONUtf8(clientDataJSONUtf8);
 
     log("clientDataJSONPreUtf8", clientDataJSONPre);
     log("clientDataJSONChallengeUtf8", clientDataJSONChallenge);
@@ -967,7 +968,12 @@ export const WebauthnApp = () => {
         provider
       );
 
-    let readTransaction = await verifyPasskeyContract.verifySignature(
+    const challengeGetBase64FromContract = await verifyPasskeyContract.base64(
+      challengeGet
+    );
+    log("challengeGetBase64FromContract", challengeGetBase64FromContract);
+
+    const sigResult = await verifyPasskeyContract.verifySignature(
       x,
       y,
       r,
@@ -976,7 +982,7 @@ export const WebauthnApp = () => {
       clientDataJSONPack, // ☆？
       challengeGet
     );
-    log("readTransaction", readTransaction);
+    log("sigResult", sigResult);
 
     // ...
   };
@@ -1125,7 +1131,7 @@ export const WebauthnApp = () => {
     const testClientDataJSONUTF8String = `{"type":"webauthn.get","challenge":"${Ethers.encodeBytes32String(
       "xxxxxx"
     ).slice(2)}","origin":"http://localhost:5173","crossOrigin":false}`;
-    const testSplit = Helpers.splitClientDataJSONWithByte32Challenge(
+    const testSplit = Helpers.splitClientDataJSONUtf8(
       testClientDataJSONUTF8String,
       "http://localhost:5173"
     );

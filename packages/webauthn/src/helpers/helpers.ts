@@ -2,6 +2,8 @@
 
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 
+import * as Ethers from "ethers";
+
 import { isoCBOR, isoBase64URL, isoUint8Array, isoCrypto } from "./iso";
 import * as cose from "./cose";
 
@@ -516,24 +518,25 @@ export const utf8StringToHex = (utf8String: string) => {
 // 2.
 // {"type":"webauthn.get","challenge":"xxx","origin":"http://localhost:5173","crossOrigin":false,"other_keys_can_be_added_here":"do not compare clientDataJSON against a template. See https://goo.gl/yabPex"}
 //
-export const splitClientDataJSONWithByte32Challenge = (
-  clientDataJSON: string,
-  origin: string
+export const splitClientDataJSONUtf8 = (
+  clientDataJSON: string
+  // origin: string
 ) => {
   // example: origin = "http://localhost:5173"
   const clientDataJSONPreLength = `{"type":"webauthn.get","challenge":"`.length;
-  const bytes32Length =
-    `0000000000000000000000000000000000000000000000000000000000000000`.length;
+  const bytes32ToBase64Length = hexToBase64URLString(
+    Ethers.keccak256("0x1234")
+  ).length;
   // const clientDataJSONPostLength = `","origin":"${origin}","crossOrigin":false}`
   //   .length;
   return {
     clientDataJSONPre: clientDataJSON.slice(0, clientDataJSONPreLength),
     clientDataJSONChallenge: clientDataJSON.slice(
       clientDataJSONPreLength,
-      clientDataJSONPreLength + bytes32Length
+      clientDataJSONPreLength + bytes32ToBase64Length
     ),
     clientDataJSONPost: clientDataJSON.slice(
-      clientDataJSONPreLength + bytes32Length
+      clientDataJSONPreLength + bytes32ToBase64Length
       // , clientDataJSONPreLength + bytes32Length + clientDataJSONPostLength
     ),
   };
