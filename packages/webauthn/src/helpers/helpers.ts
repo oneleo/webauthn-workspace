@@ -2,16 +2,13 @@
 
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 
-import * as IsoBase64URL from "./iso/isoBase64URL";
-import * as IsoCBOR from "./iso/isoCBOR";
-import * as IsoUint8Array from "./iso/isoUint8Array";
+import { isoCBOR, isoBase64URL, isoUint8Array, isoCrypto } from "./iso";
+import * as cose from "./cose";
 
 import * as Asn1Ecc from "@peculiar/asn1-ecc";
 import * as Asn1Schema from "@peculiar/asn1-schema";
 
-export * as IsoBase64URL from "./iso/isoBase64URL";
-export * as IsoCBOR from "./iso/isoCBOR";
-export * as IsoUint8Array from "./iso/isoUint8Array";
+export { isoCBOR, isoCrypto, isoBase64URL, isoUint8Array, cose };
 
 /**
  * COSE Key Types
@@ -151,7 +148,7 @@ export function decodeAuthenticatorExtensions(
 ): AuthenticationExtensionsAuthenticatorOutputs | undefined {
   let toCBOR: Map<string, unknown>;
   try {
-    toCBOR = IsoCBOR.decodeFirst(extensionData);
+    toCBOR = isoCBOR.decodeFirst(extensionData);
   } catch (err) {
     const _err = err as Error;
     throw new Error(`Error decoding authenticator extensions: ${_err.message}`);
@@ -183,7 +180,7 @@ export type UVMAuthenticatorOutput = {
  * Decode an authenticator's base64url-encoded clientDataJSON to JSON
  */
 export function decodeClientDataJSON(data: string): ClientDataJSON {
-  const toString = IsoBase64URL.toString(data);
+  const toString = isoBase64URL.toString(data);
   const clientData: ClientDataJSON = JSON.parse(toString);
 
   return clientData;
@@ -282,7 +279,7 @@ export function parseAuthenticatorData(
     credentialID = authData.slice(pointer, (pointer += credIDLen));
 
     // Decode the next CBOR item in the buffer, then re-encode it back to a Buffer
-    const firstDecoded = IsoCBOR.decodeFirst<COSEPublicKey>(
+    const firstDecoded = isoCBOR.decodeFirst<COSEPublicKey>(
       authData.slice(pointer)
     );
 
@@ -292,7 +289,7 @@ export function parseAuthenticatorData(
     credentialPublicKeyX = firstDecoded.get(COSEKTP_EC2.x);
     credentialPublicKeyY = firstDecoded.get(COSEKTP_EC2.y);
 
-    const firstEncoded = Uint8Array.from(IsoCBOR.encode(firstDecoded));
+    const firstEncoded = Uint8Array.from(isoCBOR.encode(firstDecoded));
 
     credentialPublicKey = firstEncoded;
     pointer += firstEncoded.byteLength;
@@ -303,8 +300,8 @@ export function parseAuthenticatorData(
   let extensionsDataBuffer: Uint8Array | undefined = undefined;
 
   if (flags.ed) {
-    const firstDecoded = IsoCBOR.decodeFirst(authData.slice(pointer));
-    extensionsDataBuffer = Uint8Array.from(IsoCBOR.encode(firstDecoded));
+    const firstDecoded = isoCBOR.decodeFirst(authData.slice(pointer));
+    extensionsDataBuffer = Uint8Array.from(isoCBOR.encode(firstDecoded));
     extensionsData = decodeAuthenticatorExtensions(extensionsDataBuffer);
     pointer += extensionsDataBuffer.byteLength;
   }
@@ -420,7 +417,7 @@ export function base64URLStringToBuffer(base64URLString: string): ArrayBuffer {
 export function decodeAttestationObject(
   attestationObject: Uint8Array
 ): AttestationObject {
-  return IsoCBOR.decodeFirst<AttestationObject>(attestationObject);
+  return isoCBOR.decodeFirst<AttestationObject>(attestationObject);
 }
 
 export type AttestationFormat =
@@ -491,6 +488,72 @@ export const parseEC2Signature = (sig: Uint8Array) => {
  */
 function shouldRemoveLeadingZero(bytes: Uint8Array): boolean {
   return bytes[0] === 0x0 && (bytes[1] & (1 << 7)) !== 0;
+}
+
+export const base64URLStringToHex = (base64URLString: string) => {
+  return `0x${isoUint8Array.toHex(isoBase64URL.toBuffer(base64URLString))}`;
+};
+
+export const hexToBase64URLString = (hexString: string) => {
+  // 去掉 0x 前綴後再轉換
+  return isoBase64URL.fromBuffer(isoUint8Array.fromHex(hexString.slice(2)));
+};
+
+export const hexToUTF8String = (hexString: string) => {
+  return `${isoUint8Array.toUTF8String(
+    isoUint8Array.fromHex(hexString.slice(2))
+  )}`;
+};
+
+export const utf8StringToHex = (utf8String: string) => {
+  // 去掉 0x 前綴後再轉換
+  return `0x${isoUint8Array.toHex(isoUint8Array.fromUTF8String(utf8String))}`;
+};
+
+// clientDataJSON 有 2 種格式，在解析時需注意：
+// 1.
+// {"type":"webauthn.get","challenge":"xxx","origin":"http://localhost:5173","crossOrigin":false}
+// 2.
+// {"type":"webauthn.get","challenge":"xxx","origin":"http://localhost:5173","crossOrigin":false,"other_keys_can_be_added_here":"do not compare clientDataJSON against a template. See https://goo.gl/yabPex"}
+//
+export const splitClientDataJSONWithByte32Challenge = (
+  clientDataJSON: string,
+  origin: string
+) => {
+  // example: origin = "http://localhost:5173"
+  const clientDataJSONPreLength = `{"type":"webauthn.get","challenge":"`.length;
+  const bytes32Length =
+    `0000000000000000000000000000000000000000000000000000000000000000`.length;
+  // const clientDataJSONPostLength = `","origin":"${origin}","crossOrigin":false}`
+  //   .length;
+  return {
+    clientDataJSONPre: clientDataJSON.slice(0, clientDataJSONPreLength),
+    clientDataJSONChallenge: clientDataJSON.slice(
+      clientDataJSONPreLength,
+      clientDataJSONPreLength + bytes32Length
+    ),
+    clientDataJSONPost: clientDataJSON.slice(
+      clientDataJSONPreLength + bytes32Length
+      // , clientDataJSONPreLength + bytes32Length + clientDataJSONPostLength
+    ),
+  };
+};
+
+/**
+ * Returns hash digest of the given data, using the given algorithm when provided. Defaults to using
+ * SHA-256.
+ */
+export function toHash(
+  data: Uint8Array | string,
+  algorithm: COSEALG = -7
+): Promise<Uint8Array> {
+  if (typeof data === "string") {
+    data = isoUint8Array.fromUTF8String(data);
+  }
+
+  const digest = isoCrypto.digest(data, algorithm);
+
+  return digest;
 }
 
 // export const parsingAuthenticatorData = async (attestationObject: string) => {

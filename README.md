@@ -20,11 +20,12 @@
 - Start Hardhat node
 
 ```
-% pnpm --filter ${PKG1} start:aa
+% PKG1="contracts" && pnpm --filter ${PKG1} start:aa
 ```
 
 - Start React node
 
 ```
-% pnpm --filter ${PKG2} dev
+% pnpm copy:typechain
+% PKG2="webauthn" && pnpm --filter ${PKG2} dev
 ```

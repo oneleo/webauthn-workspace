@@ -30,6 +30,11 @@ import {
   bytecode as byteSwapRouter,
 } from "@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json";
 
+import {
+  abi as abiVerifyPasskey,
+  bytecode as byteVerifyPasskey,
+} from "../artifacts/contracts/VerifyPasskey.sol/VerifyPasskey.json";
+
 // Import contract Types.
 import * as typesFactoryEntryPoint from "../typechain-types/factories/@account-abstraction/contracts/core/EntryPoint__factory";
 
@@ -42,6 +47,8 @@ import * as typesFactoryAccountFactory from "../typechain-types/factories/contra
 // import * as TypesFactoryAccount from "../typechain-types/factories/@account-abstraction/contracts/samples/SimpleAccount__factory";
 
 import * as typesFactoryAccount from "../typechain-types/factories/contracts/core/PasskeyManager__factory";
+
+import * as typesVerifyPasskey from "../typechain-types/factories/contracts/VerifyPasskey__factory";
 
 const DEBUG = false;
 
@@ -136,6 +143,21 @@ async function main() {
       provider
     );
 
+  // Deploy the Passkey contract on localhost.
+  const verifyPasskeyAddress = (
+    await deploy(
+      abiVerifyPasskey,
+      byteVerifyPasskey,
+      accountOwner,
+      gasOverrides
+    )
+  ).target.toString();
+
+  const verifyPasskey = typesVerifyPasskey.VerifyPasskey__factory.connect(
+    verifyPasskeyAddress,
+    provider
+  );
+
   // Deposit ether(s) from the Paymaster contract to the EntryPoint.
   // https://github.com/ethers-io/ethers.js/issues/4287
   let writeTransaction: Ethers.TransactionResponse = await paymasterContract
@@ -152,6 +174,7 @@ async function main() {
   log("entryPoint address", entryPointContract.target);
   log("paymaster address", paymasterContract.target);
   log("accountFactory address", accountFactoryContract.target);
+  log("verifyPasskey address", verifyPasskeyAddress);
 }
 
 const log = (name: string, value: any) => {
