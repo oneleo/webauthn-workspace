@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 
 import * as Ethers from "ethers";
+import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 
 import { isoCBOR, isoBase64URL, isoUint8Array, isoCrypto } from "./iso";
 import * as cose from "./cose";
@@ -11,6 +12,66 @@ import * as Asn1Ecc from "@peculiar/asn1-ecc";
 import * as Asn1Schema from "@peculiar/asn1-schema";
 
 export { isoCBOR, isoCrypto, isoBase64URL, isoUint8Array, cose };
+
+// 設置基本 Passkey 參數
+export const defaultPasskey = {
+  // 是否要求查看安全金鑰的製造商和型號
+  attestationConveyancePreference:
+    "none" as WebauthnTypes.AttestationConveyancePreference,
+  // This Relying Party will accept either an ES256 or RS256 credential, but prefers an ES256 credential.
+  pubKeyCredAlgEs256: -7 as WebauthnTypes.COSEAlgorithmIdentifier,
+  pubKeyCredAlgRs256: -257 as WebauthnTypes.COSEAlgorithmIdentifier,
+  // Try to use UV if possible. This is also the default.
+  pubKeyCredType: "public-key" as WebauthnTypes.PublicKeyCredentialType,
+  // 驗證器是否可漫遊
+  // 註 1：若使用虛擬驗證程式環境設定（Virtual Authenticator Environment）則必定是 cross-platform 驗證器
+  // 註 2：若要透過 platform 驗證器註冊／登入，請關閉虛擬驗證程式環境設定（屬於 cross-platform），否則會卡住（若執行第 2 次註冊／登入，Relying Part 會被懷疑要來識別用戶）
+  // https://www.w3.org/TR/webauthn-2/#sctn-privacy-considerations-client
+  authenticatorAttachment:
+    "cross-platform" as WebauthnTypes.AuthenticatorAttachment,
+  // 參數 requireResidentKey 及 residentKeyRequirement 會要求驗證器是否支援可發現憑證（Supports resident keys = passkey）
+  residentKeyRequirement: "required" as ResidentKeyRequirement,
+  // 參數 userVerificationRequirement 會要求驗證器是否支援用戶驗證（Supports user verification）
+  userVerificationRequirement:
+    "required" as WebauthnTypes.UserVerificationRequirement,
+
+  // 逾時
+  timeout: 300000, // 5 minutes
+  // Relying Party
+  rpName: "imToken AA Server",
+  // localhost
+  rpId: `${window.location.hostname}`,
+  // Make excludeCredentials check backwards compatible with credentials registered with U2F
+  extensions: { poweredBy: "imToken Labs" },
+  requireResidentKey: true,
+
+  // Don’t re-register any authenticator that has one of these credentials
+  excludeCredentials: [
+    {
+      id: "ufJWp8YGlibm1Kd9XQBWN1WAw2jy5In2Xhon9HAqcXE=" as WebauthnTypes.Base64URLString,
+      type: "public-key" as WebauthnTypes.PublicKeyCredentialType,
+      transports: [
+        "ble",
+        "cable",
+        "hybrid",
+        "internal",
+        "nfc",
+        "smart-card",
+        "usb",
+      ] as WebauthnTypes.AuthenticatorTransportFuture[],
+    },
+    {
+      id: "E/e1dhZc++mIsz4f9hb6NifAzJpF1V4mEtRlIPBiWdY=",
+      type: "public-key",
+    },
+  ] as WebauthnTypes.PublicKeyCredentialDescriptorJSON[],
+};
+
+export enum InputId {
+  userName,
+  challengeCreate,
+  challengeGet,
+}
 
 /**
  * COSE Key Types
@@ -138,6 +199,17 @@ export type COSEPublicKey = {
   set(key: COSEKTP_EC2.crv, value: COSECRV): void;
   set(key: COSEKTP_EC2.x, value: Uint8Array): void;
   set(key: COSEKTP_EC2.y, value: Uint8Array): void;
+};
+
+export const log = (name: string, value: any) => {
+  let jsonString: string;
+  try {
+    jsonString = JSON.stringify(value, null, 2);
+  } catch (e) {
+    console.log(`${name}: ${value.toString()}`);
+    return;
+  }
+  console.log(`${name}: ${jsonString}`);
 };
 
 /**
