@@ -136,20 +136,4 @@ contract PasskeyManager is SimpleAccount, IPasskeyManager {
         );
         return 0;
     }
-
-    function verifySignature(
-        uint pubKeyX,
-        uint pubKeyY,
-        uint r,
-        uint s,
-        uint message,
-        bytes memory authenticatorData,
-        string memory clientDataJSON
-    ) external view returns (bool) {
-        Passkey memory passKey = Passkey({pubKeyX: pubKeyX, pubKeyY: pubKeyY});
-        require(
-            Secp256r1.Verify(passKey, r, s, uint(message)),
-            "PM07: Invalid signature"
-        );
-    }
 }

@@ -39,7 +39,7 @@ const [
 
 const abi = Ethers.AbiCoder.defaultAbiCoder();
 
-export const WebauthnOnchain = () => {
+export const WebauthnAccountAbstraction = () => {
   const [user, setUser] = React.useState<string>("user");
   const [challengeCreate, setChallengeCreate] = React.useState<string>(
     Helpers.hexToBase64URLString(Ethers.keccak256("0x123456"))
@@ -55,6 +55,9 @@ export const WebauthnOnchain = () => {
   const [authAttachChecked, setAuthAttachChecked] = React.useState<boolean>(
     false // false = "cross-platform", true = "platform"
   );
+  const [accountSalt, setAccountSalt] = React.useState<bigint>(
+    BigInt(333666999)
+  );
 
   // ------------------------------
   // --- Create Passkey Handler ---
@@ -64,6 +67,7 @@ export const WebauthnOnchain = () => {
     user,
     challengeCreate,
     authAttach,
+    accountSalt,
   ];
 
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-registration
@@ -202,6 +206,32 @@ export const WebauthnOnchain = () => {
       maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
     };
 
+    // Declare the gas overrides argument.
+    const gasOverridesWithValue: Ethers.Overrides = {
+      ...gasOverrides,
+      value: Ethers.parseEther("9"),
+    };
+
+    // 取得 accountFactory 合約實例
+    const accountFactoryContract =
+      typesFactoryAccountFactory.PassKeyManagerFactory__factory.connect(
+        accountFactoryContractAddress,
+        provider
+      );
+
+    // 取得 PasskeyAccountAddress
+    // 註：因為 Ethers V6 合約實例內建 getAddress() 與 accountFactory 合約 getAddress() 衝突
+    const accountAddressPredict = accountFactoryContract
+      // .connect(accountFactoryOwner)
+      .getAddress(
+        accountSalt,
+        credentialIdBase64,
+        credentialPublicKeyXUint256,
+        credentialPublicKeyYUint256
+      );
+
+    // 為什麼是空值？
+
     // 取得 verifyPasskey 合約實例
     const verifyPasskeyContract =
       typesVerifyPasskey.VerifyPasskey__factory.connect(
@@ -229,6 +259,7 @@ export const WebauthnOnchain = () => {
       );
 
     if (debug) {
+      log("accountAddressPredict", accountAddressPredict);
       log("addPaskeyResult", addPaskeyResult);
     }
 
@@ -400,6 +431,9 @@ export const WebauthnOnchain = () => {
         case InputId[InputId.challengeCreate]:
           setChallengeCreate(value);
           break;
+        case InputId[InputId.accountSalt]:
+          setAccountSalt(BigInt(value));
+          break;
         case InputId[InputId.challengeGet]:
           setChallengeGet(value);
           break;
@@ -423,8 +457,10 @@ export const WebauthnOnchain = () => {
 
   return (
     <>
-      <div className="w-4/6 m-auto p-3 border-2 border-green-500 rounded-lg">
-        <h1 className="text-3xl font-bold underline">3. WebAuthN Onchain</h1>
+      <div className="w-4/6 m-auto p-3 border-2 border-yellow-500 rounded-lg">
+        <h1 className="text-3xl font-bold underline">
+          4. WebAuthN Account Abstraction
+        </h1>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             User Name
@@ -445,6 +481,18 @@ export const WebauthnOnchain = () => {
             type="text"
             id={`${InputId[InputId.challengeCreate]}`}
             value={`${challengeCreate}`}
+            onChange={handleInputChange}
+            className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
+          ></input>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Account Salt
+          </span>
+          <input
+            type="text"
+            id={`${InputId[InputId.accountSalt]}`}
+            value={`${accountSalt}`}
             onChange={handleInputChange}
             className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
           ></input>

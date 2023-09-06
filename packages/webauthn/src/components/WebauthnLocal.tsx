@@ -20,36 +20,23 @@ export const WebauthnLocal = () => {
   const [challengeGet, setChallengeGet] = React.useState<string>(
     Helpers.hexToBase64URLString(Ethers.keccak256("0x456789"))
   );
-
-  // ---------------------
-  // --- Input Handler ---
-  // ---------------------
-
-  const handleInputChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      // 更新 Input value
-      const { id, value } = event.target;
-      switch (id) {
-        case InputId[InputId.userName]:
-          setUser(value);
-          break;
-        case InputId[InputId.challengeCreate]:
-          setChallengeCreate(value);
-          break;
-        case InputId[InputId.challengeGet]:
-          setChallengeGet(value);
-          break;
-        default:
-          break;
-      }
-      console.log(`Input: ${id} = ${value}`);
-    },
-    [user, challengeCreate]
+  const [authAttach, setAuthAttach] =
+    React.useState<WebauthnTypes.AuthenticatorAttachment>(
+      defaultPasskey.authenticatorAttachment
+    );
+  const [authAttachChecked, setAuthAttachChecked] = React.useState<boolean>(
+    false // false = "cross-platform", true = "platform"
   );
 
   // ------------------------------
   // --- Create Passkey Handler ---
   // ------------------------------
+
+  const handleCreatePasskeyDepList: React.DependencyList = [
+    user,
+    challengeCreate,
+    authAttach,
+  ];
 
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-registration
   const handleCreatePasskey = React.useCallback(async () => {
@@ -93,7 +80,7 @@ export const WebauthnLocal = () => {
         timeout: defaultPasskey.timeout,
         excludeCredentials: defaultPasskey.excludeCredentials,
         authenticatorSelection: {
-          authenticatorAttachment: defaultPasskey.authenticatorAttachment,
+          authenticatorAttachment: authAttach,
           requireResidentKey: defaultPasskey.requireResidentKey,
           residentKey: defaultPasskey.residentKeyRequirement,
           userVerification: defaultPasskey.userVerificationRequirement,
@@ -322,11 +309,13 @@ export const WebauthnLocal = () => {
     }
 
     // ...
-  }, [user, challengeCreate]);
+  }, handleCreatePasskeyDepList);
 
   // ---------------------------
   // --- Get Passkey Handler ---
   // ---------------------------
+
+  const handleGetPasskeyDepList: React.DependencyList = [challengeGet];
 
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-authentication
   const handleGetPasskey = React.useCallback(async () => {
@@ -476,60 +465,119 @@ export const WebauthnLocal = () => {
     }
 
     // ...
-  }, [challengeGet]);
+  }, handleGetPasskeyDepList);
+
+  // ---------------------
+  // --- Input Handler ---
+  // ---------------------
+
+  const handleInputChangeDepList: React.DependencyList = [
+    user,
+    challengeCreate,
+    authAttachChecked,
+    authAttach,
+  ];
+
+  const handleInputChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      // 更新 Input value
+      const { id, value } = event.target;
+      switch (id) {
+        case InputId[InputId.userName]:
+          setUser(value);
+          break;
+        case InputId[InputId.challengeCreate]:
+          setChallengeCreate(value);
+          break;
+        case InputId[InputId.challengeGet]:
+          setChallengeGet(value);
+          break;
+        case InputId[InputId.authenticatorAttachment]:
+          if (value === "cross-platform") {
+            setAuthAttachChecked(true);
+            setAuthAttach("platform");
+          }
+          if (value === "platform") {
+            setAuthAttachChecked(false);
+            setAuthAttach("cross-platform");
+          }
+          break;
+        default:
+          break;
+      }
+      console.log(`Input: ${id} = ${value}`);
+    },
+    handleInputChangeDepList
+  );
 
   return (
     <>
-      <h1 className="text-3xl font-bold underline">1. WebAuthN Local</h1>
-      <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-        <span className="order-1 w-1/4 m-auto p-3 border-0 rounded-lg text-base">
-          User Name
-        </span>
-        <input
-          type="text"
-          id={`${InputId[InputId.userName]}`}
-          value={`${user}`}
-          onChange={handleInputChange}
-          className="order-2 w-3/4 m-auto p-3 border-0 rounded-lg text-base"
-        ></input>
-      </div>
-      <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-        <span className="order-1 w-1/4 m-auto p-3 border-0 rounded-lg text-base">
-          Challenge Create
-        </span>
-        <input
-          type="text"
-          id={`${InputId[InputId.challengeCreate]}`}
-          value={`${challengeCreate}`}
-          onChange={handleInputChange}
-          className="order-2 w-3/4 m-auto p-3 border-0 rounded-lg text-base"
-        ></input>
-      </div>
-      <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-        <span className="order-1 w-1/4 m-auto p-3 border-0 rounded-lg text-base">
-          Challenge Get
-        </span>
-        <input
-          type="text"
-          id={`${InputId[InputId.challengeGet]}`}
-          value={`${challengeGet}`}
-          onChange={handleInputChange}
-          className="order-2 w-3/4 m-auto p-3 border-0 rounded-lg text-base"
-        ></input>
-      </div>
-      <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-        <button
-          onClick={handleCreatePasskey}
-          className="order-1 w-2/5 m-auto p-3 border-0 rounded-lg text-base"
-        >
-          Create Passkey
-        </button>
-        <button
-          onClick={handleGetPasskey}
-          className="order-2 w-2/5 m-auto p-3 border-0 rounded-lg text-base"
-        >
-          Get Passkey
-        </button>
+      <div className="w-4/6 m-auto p-3 border-2 border-purple-500 rounded-lg">
+        <h1 className="text-3xl font-bold underline">1. WebAuthN Local</h1>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            User Name
+          </span>
+          <input
+            type="text"
+            id={`${InputId[InputId.userName]}`}
+            value={`${user}`}
+            onChange={handleInputChange}
+            className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
+          ></input>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Challenge Create
+          </span>
+          <input
+            type="text"
+            id={`${InputId[InputId.challengeCreate]}`}
+            value={`${challengeCreate}`}
+            onChange={handleInputChange}
+            className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
+          ></input>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Challenge Get
+          </span>
+          <input
+            type="text"
+            id={`${InputId[InputId.challengeGet]}`}
+            value={`${challengeGet}`}
+            onChange={handleInputChange}
+            className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
+          ></input>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Authenticator Attachment
+          </span>
+          <input
+            type="checkbox"
+            id={`${InputId[InputId.authenticatorAttachment]}`}
+            value={`${authAttach}`}
+            checked={authAttachChecked}
+            onChange={handleInputChange}
+            className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base"
+          ></input>
+          <label className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`Now is ${authAttach}`}</label>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <button
+            onClick={handleCreatePasskey}
+            className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base"
+          >
+            Create Passkey
+          </button>
+          <button
+            onClick={handleGetPasskey}
+            className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base"
+          >
+            Get Passkey
+          </button>
+        </div>
       </div>
     </>
   );

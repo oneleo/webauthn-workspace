@@ -71,6 +71,8 @@ export enum InputId {
   userName,
   challengeCreate,
   challengeGet,
+  authenticatorAttachment,
+  accountSalt,
 }
 
 /**

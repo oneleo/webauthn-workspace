@@ -8,7 +8,7 @@ import * as React from "react";
 import * as Ethers from "ethers";
 import * as Helpers from "../helpers/helpers";
 
-import { log, defaultPasskey } from "../helpers/helpers";
+import { log, defaultPasskey, InputId } from "../helpers/helpers";
 
 import * as WebauthnBrowser from "@simplewebauthn/browser";
 // import * as WebauthnServer from "@simplewebauthn/server";
@@ -21,13 +21,24 @@ import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 import * as typesVerifyPasskey from "../../typechain-types/factories/contracts/VerifyPasskey__factory";
 
 export const WebauthnOnchainAllInOne = () => {
-  const [user, setUser] = React.useState<string>("user");
+  const [authAttach, setAuthAttach] =
+    React.useState<WebauthnTypes.AuthenticatorAttachment>(
+      defaultPasskey.authenticatorAttachment
+    );
+  const [authAttachChecked, setAuthAttachChecked] = React.useState<boolean>(
+    false // false = "cross-platform", true = "platform"
+  );
 
   // -----------------------------
   // -- Create and Sign Message by Passkey --
   // -----------------------------
 
-  const handleCreateAndGetPasskey = async () => {
+  const handleCreateAndGetPasskeyDepList: React.DependencyList = [
+    authAttach,
+    authAttachChecked,
+  ];
+
+  const handleCreateAndGetPasskey = React.useCallback(async () => {
     // -------------------------------
     // -- create 註冊一組新的 Passkey --
     // -------------------------------
@@ -46,6 +57,7 @@ export const WebauthnOnchainAllInOne = () => {
     log("challengeGetBase64", challengeGetBase64);
 
     // User
+    const user = "user";
     const userDisplayName = user;
     const name = user.toLowerCase().replace(/[^\w]/g, "");
     const id = Math.floor(
@@ -264,7 +276,7 @@ export const WebauthnOnchainAllInOne = () => {
       [clientDataJSONPre, clientDataJSONPost]
     );
 
-    const verifyPasskeyAddress = "0xD5bFeBDce5c91413E41cc7B24C8402c59A344f7c";
+    const verifyPasskeyAddress = import.meta.env.VITE_ACCOUNT_FACTORY_ADDRESS;
 
     const provider = new Ethers.JsonRpcProvider(
       `${import.meta.env.VITE_PROVIDER}`
@@ -293,20 +305,68 @@ export const WebauthnOnchainAllInOne = () => {
     log("sigResult", sigResult);
 
     // ...
-  };
+  }, handleCreateAndGetPasskeyDepList);
+
+  // ---------------------
+  // --- Input Handler ---
+  // ---------------------
+
+  const handleInputChangeDepList: React.DependencyList = [
+    authAttachChecked,
+    authAttach,
+  ];
+
+  const handleInputChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      // 更新 Input value
+      const { id, value } = event.target;
+      switch (id) {
+        case InputId[InputId.authenticatorAttachment]:
+          if (value === "cross-platform") {
+            setAuthAttachChecked(true);
+            setAuthAttach("platform");
+          }
+          if (value === "platform") {
+            setAuthAttachChecked(false);
+            setAuthAttach("cross-platform");
+          }
+          break;
+        default:
+          break;
+      }
+      console.log(`Input: ${id} = ${value}`);
+    },
+    handleInputChangeDepList
+  );
 
   return (
     <>
-      <h1 className="text-3xl font-bold underline">
-        2. WebAuthN Onchain All in one
-      </h1>
-      <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-        <button
-          onClick={handleCreateAndGetPasskey}
-          className="order-2 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
-        >
-          Create And Sign Challenge
-        </button>
+      <div className="w-4/6 m-auto p-3 border-2 border-red-500 rounded-lg">
+        <h1 className="text-3xl font-bold underline">
+          2. WebAuthN Onchain All in one
+        </h1>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Authenticator Attachment
+          </span>
+          <input
+            type="checkbox"
+            id={`${InputId[InputId.authenticatorAttachment]}`}
+            value={`${authAttach}`}
+            checked={authAttachChecked}
+            onChange={handleInputChange}
+            className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base"
+          ></input>
+          <label className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`Now is ${authAttach}`}</label>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <button
+            onClick={handleCreateAndGetPasskey}
+            className="order-2 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
+          >
+            Create And Sign Challenge
+          </button>
+        </div>
       </div>
     </>
   );
