@@ -73,6 +73,7 @@ export enum InputId {
   challengeGet,
   authenticatorAttachment,
   accountSalt,
+  credentialId,
 }
 
 /**

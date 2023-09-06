@@ -1,10 +1,12 @@
 import * as React from "react";
+import * as ReactParser from "html-react-parser";
 import * as Ethers from "ethers";
 import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 import * as WebauthnBrowser from "@simplewebauthn/browser";
 
 import * as Helpers from "../helpers/helpers";
 import * as typesFactoryAccountFactory from "../../typechain-types/factories/contracts/core/PasskeyManagerFactory.sol/PassKeyManagerFactory__factory";
+import * as typesFactoryAccount from "../../typechain-types/factories/contracts/core/PasskeyManager__factory";
 import * as typesVerifyPasskey from "../../typechain-types/factories/contracts/VerifyPasskey__factory";
 
 import { log, defaultPasskey, InputId } from "../helpers/helpers";
@@ -48,6 +50,12 @@ export const WebauthnAccountAbstraction = () => {
     Helpers.hexToBase64URLString(Ethers.keccak256("0x456789"))
   );
   const [credentialId, setCredentialId] = React.useState<string>("");
+  const [credentialIdArray, setCredentialIdArray] = React.useState<string[]>(
+    []
+  );
+  const [credentialIdSelectArray, setCredentialIdSelectArray] = React.useState<
+    string[]
+  >([]);
   const [authAttach, setAuthAttach] =
     React.useState<WebauthnTypes.AuthenticatorAttachment>(
       defaultPasskey.authenticatorAttachment
@@ -58,6 +66,8 @@ export const WebauthnAccountAbstraction = () => {
   const [accountSalt, setAccountSalt] = React.useState<bigint>(
     BigInt(333666999)
   );
+  const [accountAddress, setAccountAddress] =
+    React.useState<Ethers.AddressLike>(Ethers.ZeroAddress);
 
   // ------------------------------
   // --- Create Passkey Handler ---
@@ -68,6 +78,8 @@ export const WebauthnAccountAbstraction = () => {
     challengeCreate,
     authAttach,
     accountSalt,
+    credentialIdArray,
+    credentialIdSelectArray,
   ];
 
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-registration
@@ -128,6 +140,14 @@ export const WebauthnAccountAbstraction = () => {
     );
 
     setCredentialId(credentialIdBase64);
+    const cia = credentialIdArray;
+    cia.push(credentialIdBase64);
+    setCredentialIdArray(cia);
+    const cisa = credentialIdSelectArray;
+    cisa.push(
+      `<option value="${credentialIdBase64}">${credentialIdBase64}</option>`
+    );
+    setCredentialIdSelectArray(cisa);
 
     const attestationObjectBase64 =
       registrationResponseJSON.response.attestationObject;
@@ -219,18 +239,60 @@ export const WebauthnAccountAbstraction = () => {
         provider
       );
 
-    // 取得 PasskeyAccountAddress
-    // 註：因為 Ethers V6 合約實例內建 getAddress() 與 accountFactory 合約 getAddress() 衝突
-    const accountAddressPredict = accountFactoryContract
-      // .connect(accountFactoryOwner)
-      .getAddress(
+    // 預先取得 PasskeyAccountAddress
+    // 註 1：要注意 Ethers V6 合約實例內建 getAddress() 不要與 accountFactory 合約的 getAddress() 搞混
+    // 註 2：此函數可在 createAccount() 之前執行，可預先取得 Account 地址
+    // const accountAddress = await accountFactoryContract
+    //   // .connect(accountFactoryOwner)
+    //   .getAddress(
+    //     accountSalt,
+    //     credentialIdBase64,
+    //     credentialPublicKeyXUint256,
+    //     credentialPublicKeyYUint256
+    //   );
+
+    // 模擬合約執行以取得 accountAddress
+    const createAccountStaticCall = await accountFactoryContract
+      .connect(accountFactoryOwner)
+      .createAccount.staticCall(
         accountSalt,
         credentialIdBase64,
         credentialPublicKeyXUint256,
-        credentialPublicKeyYUint256
+        credentialPublicKeyYUint256,
+        gasOverrides
+      );
+
+    setAccountAddress(createAccountStaticCall);
+
+    // 確實建立 PasskeyAccount
+    const createAccountResponse = await accountFactoryContract
+      .connect(accountFactoryOwner)
+      .createAccount(
+        accountSalt,
+        credentialIdBase64,
+        credentialPublicKeyXUint256,
+        credentialPublicKeyYUint256,
+        gasOverrides
       );
 
     // 為什麼是空值？
+    // 應該是 Account 尚未存在，所以 call PasskeyManager.initialize() 時不會有任何反應
+
+    // 取得 PasskeyAccount 實例
+    const accountContract = typesFactoryAccount.PasskeyManager__factory.connect(
+      createAccountStaticCall,
+      provider
+    );
+    console.log(`aaa`);
+    const addPasskeyResponse = await accountContract
+      .connect(accountOwner)
+      .addPasskey(
+        credentialIdBase64,
+        credentialPublicKeyXUint256,
+        credentialPublicKeyYUint256,
+        gasOverrides
+      );
+    console.log(`bbb`);
 
     // 取得 verifyPasskey 合約實例
     const verifyPasskeyContract =
@@ -239,17 +301,7 @@ export const WebauthnAccountAbstraction = () => {
         provider
       );
 
-    // 模擬合約執行
-    // const addPaskeyResult = await verifyPasskeyContract
-    // .connect(accountOwner)
-    // .addPasskey.staticCall(
-    //   credentialIdBase64,
-    //   credentialPublicKeyXUint256,
-    //   credentialPublicKeyYUint256
-    // );
-
-    // 確定合約執行
-    const addPaskeyResult = await verifyPasskeyContract
+    const addPaskeyResponse2 = await verifyPasskeyContract
       .connect(accountOwner)
       .addPasskey(
         credentialIdBase64,
@@ -259,12 +311,27 @@ export const WebauthnAccountAbstraction = () => {
       );
 
     if (debug) {
-      log("accountAddressPredict", accountAddressPredict);
-      log("addPaskeyResult", addPaskeyResult);
+      log("createAccountStaticCall", createAccountStaticCall);
     }
 
     // ...
   }, handleCreatePasskeyDepList);
+
+  // -----------------------------------------------
+  // --- Add Passkey To Account Contract Handler ---
+  // -----------------------------------------------
+
+  const handleAddPasskeyToContractDepList: React.DependencyList = [
+    user,
+    challengeCreate,
+    authAttach,
+    accountSalt,
+    credentialIdArray,
+    credentialIdSelectArray,
+  ];
+
+  const handleAddPasskeyToContract = React.useCallback(async () => {},
+  handleAddPasskeyToContractDepList);
 
   // ---------------------------
   // --- Get Passkey Handler ---
@@ -273,6 +340,8 @@ export const WebauthnAccountAbstraction = () => {
   const handleGetPasskeyDepList: React.DependencyList = [
     challengeGet,
     credentialId,
+    credentialIdArray,
+    credentialIdSelectArray,
   ];
 
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-authentication
@@ -417,6 +486,9 @@ export const WebauthnAccountAbstraction = () => {
     user,
     challengeCreate,
     authAttachChecked,
+    accountSalt,
+    challengeGet,
+    authAttachChecked,
     authAttach,
   ];
 
@@ -455,12 +527,35 @@ export const WebauthnAccountAbstraction = () => {
     handleInputChangeDepList
   );
 
+  const handleSelectChangeDepList: React.DependencyList = [
+    credentialId,
+    credentialIdArray,
+    credentialIdSelectArray,
+  ];
+
+  const handleSelectChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      // 更新 Select value
+      const { id, value } = event.target;
+      switch (id) {
+        case InputId[InputId.credentialId]:
+          setCredentialId(value);
+          break;
+        default:
+          break;
+      }
+      console.log(`Select: ${id} = ${value}`);
+    },
+    handleSelectChangeDepList
+  );
+
   return (
     <>
-      <div className="w-4/6 m-auto p-3 border-2 border-yellow-500 rounded-lg">
+      <div className="w-5/6 m-auto p-3 border-2 border-yellow-500 rounded-lg">
         <h1 className="text-3xl font-bold underline">
           4. WebAuthN Account Abstraction
         </h1>
+        <h2 className="text-2xl font-bold">Create Passkey</h2>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             User Name
@@ -487,6 +582,20 @@ export const WebauthnAccountAbstraction = () => {
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Authenticator Attachment
+          </span>
+          <input
+            type="checkbox"
+            id={`${InputId[InputId.authenticatorAttachment]}`}
+            value={`${authAttach}`}
+            checked={authAttachChecked}
+            onChange={handleInputChange}
+            className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base"
+          ></input>
+          <label className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`Now is ${authAttach}`}</label>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             Account Salt
           </span>
           <input
@@ -497,6 +606,13 @@ export const WebauthnAccountAbstraction = () => {
             className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
           ></input>
         </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Account Address
+          </span>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${accountAddress}`}</span>
+        </div>
+        <h2 className="text-2xl font-bold">Get Passkey</h2>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             Challenge Get
@@ -511,17 +627,16 @@ export const WebauthnAccountAbstraction = () => {
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            Authenticator Attachment
+            Credentials Registered
           </span>
-          <input
-            type="checkbox"
-            id={`${InputId[InputId.authenticatorAttachment]}`}
-            value={`${authAttach}`}
-            checked={authAttachChecked}
-            onChange={handleInputChange}
-            className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base"
-          ></input>
-          <label className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`Now is ${authAttach}`}</label>
+          <select
+            id={`${InputId[InputId.credentialId]}`}
+            value={`${credentialId}`}
+            onChange={handleSelectChange}
+            className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
+          >
+            {ReactParser.default(credentialIdSelectArray.join(""))}
+          </select>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <button

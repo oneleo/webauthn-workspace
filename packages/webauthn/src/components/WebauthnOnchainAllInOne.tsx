@@ -341,7 +341,7 @@ export const WebauthnOnchainAllInOne = () => {
 
   return (
     <>
-      <div className="w-4/6 m-auto p-3 border-2 border-red-500 rounded-lg">
+      <div className="w-5/6 m-auto p-3 border-2 border-red-500 rounded-lg">
         <h1 className="text-3xl font-bold underline">
           2. WebAuthN Onchain All in one
         </h1>

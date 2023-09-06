@@ -512,7 +512,7 @@ export const WebauthnLocal = () => {
 
   return (
     <>
-      <div className="w-4/6 m-auto p-3 border-2 border-purple-500 rounded-lg">
+      <div className="w-5/6 m-auto p-3 border-2 border-purple-500 rounded-lg">
         <h1 className="text-3xl font-bold underline">1. WebAuthN Local</h1>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">

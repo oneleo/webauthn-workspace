@@ -9,3 +9,6 @@ import "@account-abstraction/contracts/samples/DepositPaymaster.sol";
 import "@account-abstraction/contracts/samples/SimpleAccountFactory.sol";
 import "@account-abstraction/contracts/core/EntryPoint.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+
+import "./core/PasskeyManagerFactory.sol";
+import "./core/PasskeyManager.sol";
