@@ -1,10 +1,14 @@
 import * as React from "react";
+// Refer to https://dev.to/kalush89/how-to-parse-html-string-in-react-53fh
 import * as ReactParser from "html-react-parser";
 import * as Ethers from "ethers";
 import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 import * as WebauthnBrowser from "@simplewebauthn/browser";
 
 import * as Helpers from "../helpers/helpers";
+
+import * as typesERC20 from "../../typechain-types/factories/@openzeppelin/contracts/token/ERC20/ERC20__factory";
+import * as typesFactoryEntryPoint from "../../typechain-types/factories/@account-abstraction/contracts/core/EntryPoint__factory";
 import * as typesFactoryAccountFactory from "../../typechain-types/factories/contracts/core/PasskeyManagerFactory.sol/PassKeyManagerFactory__factory";
 import * as typesFactoryAccount from "../../typechain-types/factories/contracts/core/PasskeyManager__factory";
 import * as typesVerifyPasskey from "../../typechain-types/factories/contracts/VerifyPasskey__factory";
@@ -13,9 +17,11 @@ import { log, defaultPasskey, InputId } from "../helpers/helpers";
 
 const debug = true;
 
-const accountFactoryContractAddress = import.meta.env
-  .VITE_ACCOUNT_FACTORY_ADDRESS;
+const usdcAddress = import.meta.env.VITE_USDC_ADDRESS;
+const entryPointAddress = import.meta.env.VITE_ENTRY_POINT_ADDRESS;
+const accountFactoryAddress = import.meta.env.VITE_ACCOUNT_FACTORY_ADDRESS;
 const verifyPasskeyAddress = import.meta.env.VITE_VERIFY_PASSKEY_ADDRESS;
+
 const provider = new Ethers.JsonRpcProvider(`${import.meta.env.VITE_PROVIDER}`);
 
 const signers = Ethers.HDNodeWallet.fromMnemonic(
@@ -50,9 +56,6 @@ export const WebauthnAccountAbstraction = () => {
     Helpers.hexToBase64URLString(Ethers.keccak256("0x456789"))
   );
   const [credentialId, setCredentialId] = React.useState<string>("");
-  const [credentialIdArray, setCredentialIdArray] = React.useState<string[]>(
-    []
-  );
   const [credentialIdSelectArray, setCredentialIdSelectArray] = React.useState<
     string[]
   >([]);
@@ -78,7 +81,6 @@ export const WebauthnAccountAbstraction = () => {
     challengeCreate,
     authAttach,
     accountSalt,
-    credentialIdArray,
     credentialIdSelectArray,
   ];
 
@@ -87,7 +89,7 @@ export const WebauthnAccountAbstraction = () => {
     // The challenge is produced by the server; see the Security Considerations
     const challengeBase64 = challengeCreate;
 
-    // User
+    // 建立唯一的 User 資訊
     const userDisplayName = user;
     const name = user.toLowerCase().replace(/[^\w]/g, "");
     const id = Math.floor(
@@ -99,6 +101,7 @@ export const WebauthnAccountAbstraction = () => {
     const userId = `${name}-${id}`;
     const userName = `${name}-${id}@${defaultPasskey.rpId}`;
 
+    // Create Passkey
     const registrationResponseJSON: WebauthnTypes.RegistrationResponseJSON =
       await WebauthnBrowser.startRegistration({
         rp: {
@@ -139,15 +142,15 @@ export const WebauthnAccountAbstraction = () => {
       Ethers.solidityPacked(["string"], [credentialIdBase64])
     );
 
+    // 紀錄 credentialId 至 React Hook
     setCredentialId(credentialIdBase64);
-    const cia = credentialIdArray;
-    cia.push(credentialIdBase64);
-    setCredentialIdArray(cia);
     const cisa = credentialIdSelectArray;
     cisa.push(
       `<option value="${credentialIdBase64}">${credentialIdBase64}</option>`
     );
-    setCredentialIdSelectArray(cisa);
+    // 注意：要讓 React 確實觸發 re-render，需將 Array State 解開更新
+    // https://stackoverflow.com/questions/56266575/why-is-usestate-not-triggering-re-render
+    setCredentialIdSelectArray([...cisa]);
 
     const attestationObjectBase64 =
       registrationResponseJSON.response.attestationObject;
@@ -232,26 +235,29 @@ export const WebauthnAccountAbstraction = () => {
       value: Ethers.parseEther("9"),
     };
 
-    // 取得 accountFactory 合約實例
-    const accountFactoryContract =
-      typesFactoryAccountFactory.PassKeyManagerFactory__factory.connect(
-        accountFactoryContractAddress,
+    // 取得 USDC 合約實例
+    const usdcContract = typesERC20.ERC20__factory.connect(
+      usdcAddress,
+      provider
+    );
+
+    // 取得 entryPoint 合約實例
+    const entryPointContract =
+      typesFactoryEntryPoint.EntryPoint__factory.connect(
+        entryPointAddress,
         provider
       );
 
-    // 預先取得 PasskeyAccountAddress
-    // 註 1：要注意 Ethers V6 合約實例內建 getAddress() 不要與 accountFactory 合約的 getAddress() 搞混
-    // 註 2：此函數可在 createAccount() 之前執行，可預先取得 Account 地址
-    // const accountAddress = await accountFactoryContract
-    //   // .connect(accountFactoryOwner)
-    //   .getAddress(
-    //     accountSalt,
-    //     credentialIdBase64,
-    //     credentialPublicKeyXUint256,
-    //     credentialPublicKeyYUint256
-    //   );
+    // 取得 accountFactory 合約實例
+    const accountFactoryContract =
+      typesFactoryAccountFactory.PassKeyManagerFactory__factory.connect(
+        accountFactoryAddress,
+        provider
+      );
 
     // 模擬合約執行以取得 accountAddress
+    // 註：若直接執行 Write 合約是不會有想要的返回值的
+    // https://github.com/ethers-io/ethers.js/issues/1102
     const createAccountStaticCall = await accountFactoryContract
       .connect(accountFactoryOwner)
       .createAccount.staticCall(
@@ -264,7 +270,7 @@ export const WebauthnAccountAbstraction = () => {
 
     setAccountAddress(createAccountStaticCall);
 
-    // 確實建立 PasskeyAccount
+    // 確實建立 PasskeyAccount 合約
     const createAccountResponse = await accountFactoryContract
       .connect(accountFactoryOwner)
       .createAccount(
@@ -275,42 +281,75 @@ export const WebauthnAccountAbstraction = () => {
         gasOverrides
       );
 
-    // 為什麼是空值？
-    // 應該是 Account 尚未存在，所以 call PasskeyManager.initialize() 時不會有任何反應
+    await createAccountResponse.wait();
 
     // 取得 PasskeyAccount 實例
     const accountContract = typesFactoryAccount.PasskeyManager__factory.connect(
       createAccountStaticCall,
       provider
     );
-    console.log(`aaa`);
-    const addPasskeyResponse = await accountContract
+
+    // 轉 ETH 至 PasskeyAccount 合約
+    const sendAccountEthResponse = await accountOwner.sendTransaction({
+      to: accountContract.target,
+      ...gasOverridesWithValue,
+    });
+
+    await sendAccountEthResponse.wait();
+
+    // 取得 USDC 位數
+    const usdcDecimals = await usdcContract.decimals();
+
+    // 轉 USDC 至 PasskeyAccount 合約
+    const sendAccountUsdcResponse = await usdcContract
       .connect(accountOwner)
-      .addPasskey(
-        credentialIdBase64,
-        credentialPublicKeyXUint256,
-        credentialPublicKeyYUint256,
+      .transfer(
+        accountContract.target,
+        Ethers.parseUnits("999", usdcDecimals),
         gasOverrides
       );
-    console.log(`bbb`);
 
-    // 取得 verifyPasskey 合約實例
-    const verifyPasskeyContract =
-      typesVerifyPasskey.VerifyPasskey__factory.connect(
-        verifyPasskeyAddress,
-        provider
-      );
+    await sendAccountUsdcResponse.wait();
 
-    const addPaskeyResponse2 = await verifyPasskeyContract
+    // PasskeyAccount 合約存 ETH 至 entryPoint 合約
+    // 以及再轉 ETH 至 PasskeyAccount 合約
+    const addAccountDepositResponse = await accountContract
       .connect(accountOwner)
-      .addPasskey(
-        credentialIdBase64,
-        credentialPublicKeyXUint256,
-        credentialPublicKeyYUint256,
-        gasOverrides
-      );
+      .addDeposit(gasOverridesWithValue);
+
+    await addAccountDepositResponse.wait();
+
+    //（不採用：得到的地址都是 accountFactory 地址）透過 accountFactoryContract 取得 PasskeyAccountAddress
+    // 註 1：要注意 Ethers V6 合約實例內建 getAddress() 不要與 accountFactory 合約的 getAddress() 搞混
+    // 註 2：此函數可在 createAccount() 之前執行，可預先取得 Account 地址
+    // const accountAddressFromFactory = await accountFactoryContract
+    //   // .connect(accountFactoryOwner)
+    //   .getAddress(
+    //     accountSalt,
+    //     credentialIdBase64,
+    //     credentialPublicKeyXUint256,
+    //     credentialPublicKeyYUint256
+    //   );
+
+    // 取得 PasskeyAccount 合約的 ETH 餘額
+    const getAccountEthResponse = await provider.getBalance(
+      accountContract.target
+    );
+
+    // 取得 PasskeyAccount 合約的 USDC 餘額
+    const getAccountUsdcResponse = await usdcContract.balanceOf(
+      accountContract.target
+    );
+
+    // 取得 PasskeyAccount 合約在 entryPoint 合約中的餘額
+    const getAccountDepositsResponse = await entryPointContract.deposits(
+      accountContract.target
+    );
 
     if (debug) {
+      log("getAccountEthResponse", getAccountEthResponse);
+      log("getAccountUsdcResponse", getAccountUsdcResponse);
+      log("getAccountDepositsResponse", getAccountDepositsResponse);
       log("createAccountStaticCall", createAccountStaticCall);
     }
 
@@ -326,12 +365,165 @@ export const WebauthnAccountAbstraction = () => {
     challengeCreate,
     authAttach,
     accountSalt,
-    credentialIdArray,
+    accountAddress,
     credentialIdSelectArray,
   ];
 
-  const handleAddPasskeyToContract = React.useCallback(async () => {},
-  handleAddPasskeyToContractDepList);
+  const handleAddPasskeyToContract = React.useCallback(async () => {
+    // The challenge is produced by the server; see the Security Considerations
+    const challengeBase64 = challengeCreate;
+
+    // 建立唯一的 User 資訊
+    const userDisplayName = user;
+    const name = user.toLowerCase().replace(/[^\w]/g, "");
+    const id = Math.floor(
+      Math.random() * (Math.floor(999999999) - Math.ceil(3333) + 1) +
+        Math.ceil(3333)
+    )
+      .toString()
+      .padStart(9, "0");
+    const userId = `${name}-${id}`;
+    const userName = `${name}-${id}@${defaultPasskey.rpId}`;
+
+    // Create Passkey
+    const registrationResponseJSON: WebauthnTypes.RegistrationResponseJSON =
+      await WebauthnBrowser.startRegistration({
+        rp: {
+          name: defaultPasskey.rpName,
+          id: defaultPasskey.rpId,
+        },
+        user: {
+          id: userId,
+          name: userName,
+          displayName: userDisplayName,
+        },
+        challenge: challengeBase64,
+        pubKeyCredParams: [
+          {
+            alg: defaultPasskey.pubKeyCredAlgEs256,
+            type: defaultPasskey.pubKeyCredType,
+          },
+          {
+            alg: defaultPasskey.pubKeyCredAlgRs256,
+            type: defaultPasskey.pubKeyCredType,
+          },
+        ],
+        timeout: defaultPasskey.timeout,
+        excludeCredentials: defaultPasskey.excludeCredentials,
+        authenticatorSelection: {
+          authenticatorAttachment: authAttach,
+          requireResidentKey: defaultPasskey.requireResidentKey,
+          residentKey: defaultPasskey.residentKeyRequirement,
+          userVerification: defaultPasskey.userVerificationRequirement,
+        },
+        attestation: defaultPasskey.attestationConveyancePreference,
+        extensions: defaultPasskey.extensions,
+      } as WebauthnTypes.PublicKeyCredentialCreationOptionsJSON);
+
+    const credentialIdBase64 = registrationResponseJSON.id;
+
+    const credentialIdKeccak256 = Ethers.keccak256(
+      Ethers.solidityPacked(["string"], [credentialIdBase64])
+    );
+
+    // 紀錄 credentialId 至 React Hook
+    const cisa = credentialIdSelectArray;
+    cisa.push(
+      `<option value="${credentialIdBase64}">${credentialIdBase64}</option>`
+    );
+
+    // 注意：要讓 React 確實觸發 re-render，需將 Array State 解開更新
+    // https://stackoverflow.com/questions/56266575/why-is-usestate-not-triggering-re-render
+    setCredentialIdSelectArray([...cisa]);
+
+    // Parse authenticatorData
+    const parsedAuthData = Helpers.parseAuthenticatorData(
+      Helpers.decodeAttestationObject(
+        Helpers.isoBase64URL.toBuffer(
+          registrationResponseJSON.response.attestationObject
+        )
+      ).get("authData")
+    );
+
+    // 取得 credentialPublicKeyY
+    // 註：只能在 create 註冊階段才能取得
+    const credentialPublicKeyXUint256 = abi.decode(
+      ["uint256"],
+      abi.encode(
+        ["bytes32"],
+        [
+          Helpers.base64URLStringToHex(
+            Helpers.isoBase64URL.fromBuffer(
+              parsedAuthData.credentialPublicKeyX!
+            )
+          ),
+        ]
+      )
+    )[0] as bigint;
+
+    // 取得 credentialPublicKeyY
+    // 註：一樣只能在 create 註冊階段才能取得
+    const credentialPublicKeyYUint256 = abi.decode(
+      ["uint256"],
+      abi.encode(
+        ["bytes32"],
+        [
+          Helpers.base64URLStringToHex(
+            Helpers.isoBase64URL.fromBuffer(
+              parsedAuthData.credentialPublicKeyY!
+            )
+          ),
+        ]
+      )
+    )[0] as bigint;
+
+    if (debug) {
+      log("credentialIdBase64", credentialIdBase64);
+      log("credentialIdKeccak256", credentialIdKeccak256);
+    }
+
+    // 接下來會與合約互動
+    // Declare the gas overrides argument.
+    // The gasLimit should be sufficiently large to avoid the
+    // "Error: Transaction reverted: trying to deploy a contract whose code is too large" error.
+    const feeData = await provider.getFeeData();
+
+    const gasOverrides: Ethers.Overrides = {
+      gasLimit: BigInt(9999999),
+      maxFeePerGas: feeData.maxFeePerGas,
+      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+    };
+
+    // 取得 PasskeyAccount 實例
+    const accountContract = typesFactoryAccount.PasskeyManager__factory.connect(
+      accountAddress as string,
+      provider
+    );
+
+    // 增加 Passkey 至 PasskeyAccount
+    const addPasskeyResponse = await accountContract
+      .connect(accountOwner)
+      .addPasskey(
+        credentialIdBase64,
+        credentialPublicKeyXUint256,
+        credentialPublicKeyYUint256,
+        gasOverrides
+      );
+
+    await addPasskeyResponse.wait();
+
+    if (debug) {
+      const knownEncodedIdHashes: string[] = [];
+      // 取得所有已註冊進合約的 credentialID
+      for (let i = 0; i < cisa.length; i++) {
+        knownEncodedIdHashes.push(
+          await accountContract.KnownEncodedIdHashes(i)
+        );
+      }
+      log("knownEncodedIdHashes", knownEncodedIdHashes);
+    }
+    // ...
+  }, handleAddPasskeyToContractDepList);
 
   // ---------------------------
   // --- Get Passkey Handler ---
@@ -340,7 +532,6 @@ export const WebauthnAccountAbstraction = () => {
   const handleGetPasskeyDepList: React.DependencyList = [
     challengeGet,
     credentialId,
-    credentialIdArray,
     credentialIdSelectArray,
   ];
 
@@ -417,12 +608,6 @@ export const WebauthnAccountAbstraction = () => {
       abi.encode(["bytes32"], [signatureSHex])
     )[0] as bigint;
 
-    const verifyPasskeyContract =
-      typesVerifyPasskey.VerifyPasskey__factory.connect(
-        verifyPasskeyAddress,
-        provider
-      );
-
     if (debug) {
       console.warn(`+++ Get Passkey +++`);
       log("credentialID", credentialId);
@@ -464,6 +649,16 @@ export const WebauthnAccountAbstraction = () => {
         signatureSUint256
       );
     }
+
+    // 在 Hardhat 階段取得 USDC
+    // 在 Passkey Create 階段將 ETH、USDC 打到 Account
+    // 在 Passkey Get 階段，通過驗證後，將 USDC 打回 accountOwner
+
+    const verifyPasskeyContract =
+      typesVerifyPasskey.VerifyPasskey__factory.connect(
+        verifyPasskeyAddress,
+        provider
+      );
 
     const sigResult = await verifyPasskeyContract.validateSignature(
       signatureRUint256,
@@ -523,13 +718,14 @@ export const WebauthnAccountAbstraction = () => {
           break;
       }
       console.log(`Input: ${id} = ${value}`);
+
+      // ...
     },
     handleInputChangeDepList
   );
 
   const handleSelectChangeDepList: React.DependencyList = [
     credentialId,
-    credentialIdArray,
     credentialIdSelectArray,
   ];
 
@@ -545,6 +741,8 @@ export const WebauthnAccountAbstraction = () => {
           break;
       }
       console.log(`Select: ${id} = ${value}`);
+
+      // ...
     },
     handleSelectChangeDepList
   );
@@ -641,13 +839,19 @@ export const WebauthnAccountAbstraction = () => {
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <button
             onClick={handleCreatePasskey}
-            className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base"
+            className="order-1 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
           >
             Create Passkey
           </button>
           <button
+            onClick={handleAddPasskeyToContract}
+            className="order-2 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
+          >
+            Add Passkey
+          </button>
+          <button
             onClick={handleGetPasskey}
-            className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base"
+            className="order-2 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
           >
             Get Passkey
           </button>

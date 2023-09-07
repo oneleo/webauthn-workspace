@@ -4,6 +4,8 @@ import * as Hardhat from "hardhat";
 import * as Ethers from "ethers";
 import * as Addresses from "./addresses";
 
+import * as typesERC20 from "../typechain-types/factories/@openzeppelin/contracts/token/ERC20/ERC20__factory";
+
 // Import contract ABIs.
 import {
   abi as abiEntryPoint,
@@ -57,6 +59,16 @@ const PROXY_DATA = String("0x");
 
 // Get the Hatdhat network name and provider.
 const NETWORK_NAME = Hardhat.network.name;
+
+const FORK_CHAIN_ID = Hardhat.network.config.chainId;
+const FORK_CHAIN =
+  FORK_CHAIN_ID === 1337
+    ? "mainnet"
+    : FORK_CHAIN_ID === 11155111
+    ? "sepolia"
+    : FORK_CHAIN_ID === 5
+    ? "goerli"
+    : "mainnet";
 
 async function main() {
   const signers = await Hardhat.ethers.getSigners();
@@ -143,6 +155,43 @@ async function main() {
       provider
     );
 
+  // 取得目前網路的地址
+  // 註：欲解決「Element implicitly has an 'any' type because expression of type 'string' can't be used to index type」的問題：
+  // https://stackoverflow.com/questions/57086672/element-implicitly-has-an-any-type-because-expression-of-type-string-cant-b
+  const addresses =
+    Addresses.addresses[FORK_CHAIN as keyof typeof Addresses.addresses];
+
+  // The user exchanges ethers for USDT, which are then transferred to the Account contract.
+  const uniswapSwapRouterContract = new Hardhat.ethers.Contract(
+    addresses.UNISWAP_SWAP_ROUTER,
+    abiUniswapSwapRouter,
+    accountOwner
+  );
+
+  const buyAccountOwnerUsdcResponse =
+    await uniswapSwapRouterContract.exactInputSingle(
+      {
+        tokenIn: addresses.WETH,
+        tokenOut: addresses.USDC,
+        // 1% == 10000, 0.3% == 3000, 0.05% == 500, 0.01 == 100
+        fee: 3000,
+        recipient: accountOwner.address,
+        deadline: BigInt(blockTimeStamp + 600),
+        amountIn: gasOverridesWithValue.value,
+        amountOutMinimum: BigInt(0),
+        sqrtPriceLimitX96: 0,
+      },
+      gasOverridesWithValue
+    );
+
+  await buyAccountOwnerUsdcResponse.wait();
+
+  // 取得 USDC 合約實例
+  const usdcContract = typesERC20.ERC20__factory.connect(
+    addresses.USDC,
+    provider
+  );
+
   // Deploy the Passkey contract on localhost.
   const verifyPasskeyAddress = (
     await deploy(
@@ -153,28 +202,36 @@ async function main() {
     )
   ).target.toString();
 
-  const verifyPasskey = typesVerifyPasskey.VerifyPasskey__factory.connect(
-    verifyPasskeyAddress,
-    provider
-  );
+  const verifyPasskeyContract =
+    typesVerifyPasskey.VerifyPasskey__factory.connect(
+      verifyPasskeyAddress,
+      provider
+    );
 
   // Deposit ether(s) from the Paymaster contract to the EntryPoint.
   // https://github.com/ethers-io/ethers.js/issues/4287
-  let writeTransaction: Ethers.TransactionResponse = await paymasterContract
+  const addPaymasterDepositResponse = await paymasterContract
     .connect(paymasterOwner)
     .deposit(gasOverridesWithValue);
 
-  let readContract: any = await entryPointContract.deposits(
+  await addPaymasterDepositResponse.wait();
+
+  // 取得 accountOwner 的 USDC 餘額
+  const getAccountOwnerEthResponse = await usdcContract.balanceOf(
+    accountOwner.address
+  );
+  // 取得 paymaster 在 entryPoint 的 ETH 餘額
+  const getPaymasterDepositResponse = await entryPointContract.deposits(
     paymasterContractAddress
   );
 
-  log("depositsAmountFromPaymaster", readContract);
-
+  log("getAccountOwnerEthResponse", getAccountOwnerEthResponse);
+  log("getPaymasterDepositResponse", getPaymasterDepositResponse);
   // Display contract addresses.
   log("entryPoint address", entryPointContract.target);
   log("paymaster address", paymasterContract.target);
   log("accountFactory address", accountFactoryContract.target);
-  log("verifyPasskey address", verifyPasskeyAddress);
+  log("verifyPasskey address", verifyPasskeyContract.target);
 }
 
 const log = (name: string, value: any) => {
