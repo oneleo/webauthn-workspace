@@ -353,6 +353,10 @@ export const WebauthnOnchain = () => {
         "authenticationResponseJSON > clientDataJSON > postHex",
         clientDataJSONPostHex
       );
+      log(
+        "authenticationResponseJSON > clientDataJSON > packHex",
+        clientDataJSONPack
+      );
       log("authenticationResponseJSON > signature > rHex", signatureRHex);
       log(
         "* authenticationResponseJSON > signature > rUint256",

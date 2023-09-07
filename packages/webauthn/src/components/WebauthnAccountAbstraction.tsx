@@ -651,6 +651,7 @@ export const WebauthnAccountAbstraction = () => {
       maxFeePerGas: feeData.maxFeePerGas,
       maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
     };
+
     log("feeData", feeData);
 
     // 取得 USDC 合約實例與介面
@@ -698,6 +699,9 @@ export const WebauthnAccountAbstraction = () => {
       },
     ];
 
+    // 轉送 USDC 範例：
+    // https://4337.blocknative.com/ops/0x466860c58814ab8bbf884efd59682ac2dce11bd229cc922a4478582abcc70b57/0
+
     // Get userOp sig by Builder
     const userOp: Helpers.UserOperationStruct = {
       sender: accountAddress as string,
@@ -714,9 +718,9 @@ export const WebauthnAccountAbstraction = () => {
     };
 
     userOp.callData = accountInterface.encodeFunctionData("execute", [
-      executeArgs[0].dest,
-      executeArgs[0].value,
-      executeArgs[0].func,
+      executeArgs[1].dest,
+      executeArgs[1].value,
+      executeArgs[1].func,
     ]);
 
     // 取得 userOpHash

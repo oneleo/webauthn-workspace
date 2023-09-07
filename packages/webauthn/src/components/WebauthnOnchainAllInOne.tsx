@@ -275,6 +275,7 @@ export const WebauthnOnchainAllInOne = () => {
       ["string", "string"],
       [clientDataJSONPre, clientDataJSONPost]
     );
+    log("clientDataJSONPack", clientDataJSONPack);
 
     const verifyPasskeyAddress = import.meta.env.VITE_VERIFY_PASSKEY_ADDRESS;
 

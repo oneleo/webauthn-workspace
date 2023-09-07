@@ -29,3 +29,6 @@
 % pnpm copy:typechain
 % PKG2="webauthn" && pnpm --filter ${PKG2} dev
 ```
+
+- Onchain passkey verify contract sample:
+  - [https://sepolia.etherscan.io/address/0x433f0e4f5f8a31084f36c0fccf9ad29aad2ec34f#readContract](https://sepolia.etherscan.io/address/0x433f0e4f5f8a31084f36c0fccf9ad29aad2ec34f#readContract)
