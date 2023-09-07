@@ -4,6 +4,7 @@ import * as ReactParser from "html-react-parser";
 import * as Ethers from "ethers";
 import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 import * as WebauthnBrowser from "@simplewebauthn/browser";
+import * as UserOp from "userop";
 
 import * as Helpers from "../helpers/helpers";
 
@@ -20,7 +21,6 @@ const debug = true;
 const usdcAddress = import.meta.env.VITE_USDC_ADDRESS;
 const entryPointAddress = import.meta.env.VITE_ENTRY_POINT_ADDRESS;
 const accountFactoryAddress = import.meta.env.VITE_ACCOUNT_FACTORY_ADDRESS;
-const verifyPasskeyAddress = import.meta.env.VITE_VERIFY_PASSKEY_ADDRESS;
 
 const provider = new Ethers.JsonRpcProvider(`${import.meta.env.VITE_PROVIDER}`);
 
@@ -52,9 +52,6 @@ export const WebauthnAccountAbstraction = () => {
   const [challengeCreate, setChallengeCreate] = React.useState<string>(
     Helpers.hexToBase64URLString(Ethers.keccak256("0x123456"))
   );
-  const [challengeGet, setChallengeGet] = React.useState<string>(
-    Helpers.hexToBase64URLString(Ethers.keccak256("0x456789"))
-  );
   const [credentialId, setCredentialId] = React.useState<string>("");
   const [credentialIdSelectArray, setCredentialIdSelectArray] = React.useState<
     string[]
@@ -66,11 +63,125 @@ export const WebauthnAccountAbstraction = () => {
   const [authAttachChecked, setAuthAttachChecked] = React.useState<boolean>(
     false // false = "cross-platform", true = "platform"
   );
+  const [usdcDecimals, setUsdcDecimals] = React.useState<bigint>(BigInt(0));
   const [accountSalt, setAccountSalt] = React.useState<bigint>(
     BigInt(333666999)
   );
   const [accountAddress, setAccountAddress] =
     React.useState<Ethers.AddressLike>(Ethers.ZeroAddress);
+  const [accountNonce, setAccountNonce] = React.useState<bigint>(BigInt(0));
+  const [accountEthBalance, setAccountEthBalance] = React.useState<bigint>(
+    BigInt(0)
+  );
+  const [accountEthEntryPointBalance, setAccountEthEntryPointBalance] =
+    React.useState<bigint>(BigInt(0));
+  const [accountUsdcBalance, setAccountUsdcBalance] = React.useState<bigint>(
+    BigInt(0)
+  );
+  const [accountOwnerEthBalance, setAccountOwnerEthBalance] =
+    React.useState<bigint>(BigInt(0));
+  const [accountOwnerUsdcBalance, setAccountOwnerUsdcBalance] =
+    React.useState<bigint>(BigInt(0));
+
+  // --------------------
+  // --- Render Timer ---
+  // --------------------
+
+  const useEffectTimerDepList: React.DependencyList = [accountAddress];
+
+  React.useEffect(() => {
+    // 如果 accountAddress 為 0x0 就不執行
+    if (accountAddress === Ethers.ZeroAddress) {
+      return;
+    }
+
+    // 取得 USDC 合約實例
+    const usdcContract = typesERC20.ERC20__factory.connect(
+      usdcAddress,
+      provider
+    );
+
+    // 取得 entryPoint 合約實例
+    const entryPointContract =
+      typesFactoryEntryPoint.EntryPoint__factory.connect(
+        entryPointAddress,
+        provider
+      );
+
+    // 取得 PasskeyAccount 合約實例
+    const accountContract = typesFactoryAccount.PasskeyManager__factory.connect(
+      accountAddress as string,
+      provider
+    );
+
+    // 放在 React.useEffect() 中的非同步函數
+    const asyncFunction = async () => {
+      // 偵測鏈上是否已部署此 Account 合約：失敗
+      if ((await provider.getCode(accountContract.target)) === "0x") {
+        setAccountNonce(BigInt(0));
+        setAccountEthBalance(BigInt(0));
+        setAccountEthEntryPointBalance(BigInt(0));
+        setAccountUsdcBalance(BigInt(0));
+        setAccountOwnerEthBalance(BigInt(0));
+        setAccountOwnerUsdcBalance(BigInt(0));
+      }
+
+      // 偵測鏈上是否已部署此 Account 合約：成功
+      if ((await provider.getCode(accountContract.target)) !== "0x") {
+        // 取得 PasskeyAccount 合約的 ETH 餘額
+        const getAccountEthResponse = await provider.getBalance(
+          accountContract.target
+        );
+
+        // 取得 PasskeyAccount 合約的 USDC 餘額
+        const getAccountUsdcResponse = await usdcContract.balanceOf(
+          accountContract.target
+        );
+
+        // 取得 PasskeyAccount 合約在 entryPoint 合約中的餘額
+        const getAccountDepositsResponse = await entryPointContract.deposits(
+          accountContract.target
+        );
+
+        // 取得 PasskeyAccount 合約的 Nonce 值
+        const getAccountNonceResponse = await accountContract.getNonce();
+
+        // 取得 AccountOwner 的 ETH 餘額
+        const getAccountOwnerEthResponse = await provider.getBalance(
+          accountOwner.address
+        );
+
+        // 取得 AccountOwner 合約的 USDC 餘額
+        const getAccountOwnerUsdcResponse = await usdcContract.balanceOf(
+          accountOwner.address
+        );
+
+        // 設置對應值
+        setAccountNonce(getAccountNonceResponse);
+        setAccountEthBalance(getAccountEthResponse);
+        setAccountUsdcBalance(getAccountUsdcResponse);
+        setAccountEthEntryPointBalance(getAccountDepositsResponse[0]);
+        setAccountOwnerEthBalance(getAccountOwnerEthResponse);
+        setAccountOwnerUsdcBalance(getAccountOwnerUsdcResponse);
+
+        // ...
+      }
+    };
+
+    // 設置計數器
+    let id = setInterval(() => {
+      asyncFunction().catch((e) => console.log(e));
+    }, 1000);
+
+    // 這邊的 return 如同 componentWillUnmount() 函數
+    // 當此時 useEffect 要 unmount 時會將目前的計數器 id 刪除
+    // 好讓一個新的 useEffect 不會和舊的 useEffect 重複
+    return () => {
+      clearInterval(id);
+    };
+
+    // ...
+  }, useEffectTimerDepList);
 
   // ------------------------------
   // --- Create Passkey Handler ---
@@ -142,37 +253,31 @@ export const WebauthnAccountAbstraction = () => {
       Ethers.solidityPacked(["string"], [credentialIdBase64])
     );
 
-    // 紀錄 credentialId 至 React Hook
     setCredentialId(credentialIdBase64);
+
+    // 紀錄 credentialId 至 React Hook
     const cisa = credentialIdSelectArray;
     cisa.push(
       `<option value="${credentialIdBase64}">${credentialIdBase64}</option>`
     );
+
     // 注意：要讓 React 確實觸發 re-render，需將 Array State 解開更新
     // https://stackoverflow.com/questions/56266575/why-is-usestate-not-triggering-re-render
     setCredentialIdSelectArray([...cisa]);
 
-    const attestationObjectBase64 =
-      registrationResponseJSON.response.attestationObject;
-
-    // Parse attestationObject
-    const parsedAttestationObject = Helpers.decodeAttestationObject(
-      Helpers.isoBase64URL.toBuffer(attestationObjectBase64)
-    );
-
     // Parse authenticatorData
     const parsedAuthData = Helpers.parseAuthenticatorData(
-      parsedAttestationObject.get("authData")
+      Helpers.decodeAttestationObject(
+        Helpers.isoBase64URL.toBuffer(
+          registrationResponseJSON.response.attestationObject
+        )
+      ).get("authData")
     );
 
-    // 取得 credentialPublicKeyY
+    // 取得 credentialPublicKeyX
     // 註：一樣只能在 create 註冊階段才能取得
-    const credentialPublicKeyXBase64 = Helpers.isoBase64URL.fromBuffer(
-      parsedAuthData.credentialPublicKeyX!
-    );
-
     const credentialPublicKeyXHex = Helpers.base64URLStringToHex(
-      credentialPublicKeyXBase64
+      Helpers.isoBase64URL.fromBuffer(parsedAuthData.credentialPublicKeyX!)
     );
 
     const credentialPublicKeyXUint256 = abi.decode(
@@ -182,12 +287,8 @@ export const WebauthnAccountAbstraction = () => {
 
     // 取得 credentialPublicKeyY
     // 註：一樣只能在 create 註冊階段才能取得
-    const credentialPublicKeyYBase64 = Helpers.isoBase64URL.fromBuffer(
-      parsedAuthData.credentialPublicKeyY!
-    );
-
     const credentialPublicKeyYHex = Helpers.base64URLStringToHex(
-      credentialPublicKeyYBase64
+      Helpers.isoBase64URL.fromBuffer(parsedAuthData.credentialPublicKeyY!)
     );
 
     const credentialPublicKeyYUint256 = abi.decode(
@@ -224,7 +325,7 @@ export const WebauthnAccountAbstraction = () => {
     const feeData = await provider.getFeeData();
 
     const gasOverrides: Ethers.Overrides = {
-      gasLimit: BigInt(9999999),
+      gasLimit: BigInt(29999999),
       maxFeePerGas: feeData.maxFeePerGas,
       maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
     };
@@ -232,7 +333,7 @@ export const WebauthnAccountAbstraction = () => {
     // Declare the gas overrides argument.
     const gasOverridesWithValue: Ethers.Overrides = {
       ...gasOverrides,
-      value: Ethers.parseEther("9"),
+      value: Ethers.parseEther("33"),
     };
 
     // 取得 USDC 合約實例
@@ -298,14 +399,15 @@ export const WebauthnAccountAbstraction = () => {
     await sendAccountEthResponse.wait();
 
     // 取得 USDC 位數
-    const usdcDecimals = await usdcContract.decimals();
+    const usdcDecimalsResponse = await usdcContract.decimals();
+    setUsdcDecimals(usdcDecimalsResponse);
 
     // 轉 USDC 至 PasskeyAccount 合約
     const sendAccountUsdcResponse = await usdcContract
       .connect(accountOwner)
       .transfer(
         accountContract.target,
-        Ethers.parseUnits("999", usdcDecimals),
+        Ethers.parseUnits("999", usdcDecimalsResponse),
         gasOverrides
       );
 
@@ -345,6 +447,9 @@ export const WebauthnAccountAbstraction = () => {
     const getAccountDepositsResponse = await entryPointContract.deposits(
       accountContract.target
     );
+
+    //（為 zero 地址）取得 PasskeyAccount 合約登記的 Owner
+    // const getAccountOwnerResponse = await accountContract.owner();
 
     if (debug) {
       log("getAccountEthResponse", getAccountEthResponse);
@@ -489,7 +594,7 @@ export const WebauthnAccountAbstraction = () => {
     const feeData = await provider.getFeeData();
 
     const gasOverrides: Ethers.Overrides = {
-      gasLimit: BigInt(9999999),
+      gasLimit: BigInt(29999999),
       maxFeePerGas: feeData.maxFeePerGas,
       maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
     };
@@ -530,16 +635,96 @@ export const WebauthnAccountAbstraction = () => {
   // ---------------------------
 
   const handleGetPasskeyDepList: React.DependencyList = [
-    challengeGet,
     credentialId,
     credentialIdSelectArray,
+    accountAddress,
+    accountNonce,
+    usdcDecimals,
   ];
 
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-authentication
   const handleGetPasskey = React.useCallback(async () => {
+    const feeData = await provider.getFeeData();
+
+    const gasOverrides: Ethers.Overrides = {
+      gasLimit: BigInt(29999999),
+      maxFeePerGas: feeData.maxFeePerGas,
+      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+    };
+    log("feeData", feeData);
+
+    // 取得 USDC 合約實例與介面
+    const usdcContract = typesERC20.ERC20__factory.connect(
+      usdcAddress,
+      provider
+    );
+
+    const usdcInterface = typesERC20.ERC20__factory.createInterface();
+
+    // 取得 entryPoint 合約實例
+    const entryPointContract =
+      typesFactoryEntryPoint.EntryPoint__factory.connect(
+        entryPointAddress,
+        provider
+      );
+
+    // 取得 PasskeyAccount 合約實例
+    const accountContract = typesFactoryAccount.PasskeyManager__factory.connect(
+      accountAddress as string,
+      provider
+    );
+
+    const accountInterface =
+      typesFactoryAccount.PasskeyManager__factory.createInterface();
+
+    // 組出 AccountContract 轉送 ETH 與 USDC 的 Calldata
+    const encodeUsdcTransfer = usdcInterface.encodeFunctionData("transfer", [
+      accountOwner.address,
+      Ethers.parseUnits("1", usdcDecimals),
+    ]);
+
+    const executeArgs = [
+      {
+        // 組出 AccountContract 轉送 ETH 的 Calldata
+        dest: accountOwner.address, // dest
+        value: Ethers.parseEther("1"), // value
+        func: Ethers.getBytes("0x"), // func
+      },
+      // 組出 AccountContract 轉送 USDC 的 Calldata
+      {
+        dest: usdcContract.target, // dest
+        value: BigInt(0), // value
+        func: encodeUsdcTransfer, // func
+      },
+    ];
+
+    // Get userOp sig by Builder
+    const userOp: Helpers.UserOperationStruct = {
+      sender: accountAddress as string,
+      nonce: accountNonce,
+      initCode: "0x",
+      callData: "0x",
+      callGasLimit: gasOverrides.gasLimit!,
+      verificationGasLimit: BigInt("9999999"),
+      preVerificationGas: BigInt("9999999"),
+      maxFeePerGas: gasOverrides.maxFeePerGas!,
+      maxPriorityFeePerGas: gasOverrides.maxPriorityFeePerGas!,
+      paymasterAndData: "0x",
+      signature: "0x",
+    };
+
+    userOp.callData = accountInterface.encodeFunctionData("execute", [
+      executeArgs[0].dest,
+      executeArgs[0].value,
+      executeArgs[0].func,
+    ]);
+
+    // 取得 userOpHash
+    const userOpHashResponse = await entryPointContract.getUserOpHash(userOp);
+
     // The challenge is produced by the server; see the Security Considerations
-    const challengeBase64 = challengeGet;
-    const challengeHex = Helpers.base64URLStringToHex(challengeBase64);
+    const challengeHex = userOpHashResponse;
+    const challengeBase64 = Helpers.hexToBase64URLString(challengeHex);
 
     const authenticationResponseJSON: WebauthnTypes.AuthenticationResponseJSON =
       await WebauthnBrowser.startAuthentication({
@@ -580,11 +765,6 @@ export const WebauthnAccountAbstraction = () => {
 
     const clientDataJSONPostHex = Helpers.utf8StringToHex(
       clientDataJSONPostUtf8
-    );
-
-    const clientDataJSONPack = abi.encode(
-      ["string", "string"],
-      [clientDataJSONPreUtf8, clientDataJSONPostUtf8]
     );
 
     const signatureBase64 = authenticationResponseJSON.response.signature;
@@ -654,21 +834,25 @@ export const WebauthnAccountAbstraction = () => {
     // 在 Passkey Create 階段將 ETH、USDC 打到 Account
     // 在 Passkey Get 階段，通過驗證後，將 USDC 打回 accountOwner
 
-    const verifyPasskeyContract =
-      typesVerifyPasskey.VerifyPasskey__factory.connect(
-        verifyPasskeyAddress,
-        provider
-      );
-
-    const sigResult = await verifyPasskeyContract.validateSignature(
-      signatureRUint256,
-      signatureSUint256,
-      authenticatorDataHex, // ☆
-      clientDataJSONPack, // ☆？
-      credentialIdKeccak256,
-      challengeHex
+    userOp.signature = abi.encode(
+      ["uint256", "uint256", "bytes", "string", "string", "bytes32"],
+      [
+        signatureRUint256,
+        signatureSUint256,
+        authenticatorDataHex,
+        clientDataJSONPreUtf8,
+        clientDataJSONPostUtf8,
+        credentialIdKeccak256,
+      ]
     );
-    log("sigResult", sigResult);
+
+    Helpers.logUserOp(userOp);
+
+    const handleOpsResponse = await entryPointContract
+      .connect(bundlerOwner)
+      .handleOps([userOp], bundlerOwner.address, gasOverrides);
+
+    await handleOpsResponse.wait();
 
     // ...
   }, handleGetPasskeyDepList);
@@ -682,7 +866,6 @@ export const WebauthnAccountAbstraction = () => {
     challengeCreate,
     authAttachChecked,
     accountSalt,
-    challengeGet,
     authAttachChecked,
     authAttach,
   ];
@@ -700,9 +883,6 @@ export const WebauthnAccountAbstraction = () => {
           break;
         case InputId[InputId.accountSalt]:
           setAccountSalt(BigInt(value));
-          break;
-        case InputId[InputId.challengeGet]:
-          setChallengeGet(value);
           break;
         case InputId[InputId.authenticatorAttachment]:
           if (value === "cross-platform") {
@@ -810,19 +990,58 @@ export const WebauthnAccountAbstraction = () => {
           </span>
           <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${accountAddress}`}</span>
         </div>
-        <h2 className="text-2xl font-bold">Get Passkey</h2>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            Challenge Get
+            Account Nonce
           </span>
-          <input
-            type="text"
-            id={`${InputId[InputId.challengeGet]}`}
-            value={`${challengeGet}`}
-            onChange={handleInputChange}
-            className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
-          ></input>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${accountNonce}`}</span>
         </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Account ETH Balance
+          </span>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
+            accountEthBalance,
+            18
+          )}`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Account USDC Balance
+          </span>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
+            accountUsdcBalance,
+            usdcDecimals
+          )}`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Account deposit ETH Balance
+          </span>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
+            accountEthEntryPointBalance,
+            18
+          )}`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Owner ETH Balance
+          </span>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
+            accountOwnerEthBalance,
+            18
+          )}`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Owner USDC Balance
+          </span>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
+            accountOwnerUsdcBalance,
+            usdcDecimals
+          )}`}</span>
+        </div>
+        <h2 className="text-2xl font-bold">Get Passkey</h2>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             Credentials Registered

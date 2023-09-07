@@ -90,7 +90,7 @@ async function main() {
   // The gasLimit should be sufficiently large to avoid the
   // "Error: Transaction reverted: trying to deploy a contract whose code is too large" error.
   const gasOverrides: Ethers.Overrides = {
-    gasLimit: BigInt(9999999),
+    gasLimit: BigInt(29999999),
     maxFeePerGas: feeData.maxFeePerGas,
     maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
   };
@@ -98,13 +98,21 @@ async function main() {
   // Declare the gas overrides argument.
   const gasOverridesWithValue: Ethers.Overrides = {
     ...gasOverrides,
-    value: Ethers.parseEther("9"),
+    value: Ethers.parseEther("33"),
   };
 
+  // 取得目前網路的地址
+  // 註：欲解決「Element implicitly has an 'any' type because expression of type 'string' can't be used to index type」的問題：
+  // https://stackoverflow.com/questions/57086672/element-implicitly-has-an-any-type-because-expression-of-type-string-cant-b
+  const addresses =
+    Addresses.addresses[FORK_CHAIN as keyof typeof Addresses.addresses];
+
   // Deploy the EntryPoint contract on localhost.
-  const entryPointContractAddress = (
-    await deploy(abiEntryPoint, byteEntryPoint, entryPointOwner, gasOverrides)
-  ).target.toString();
+  // const entryPointContractAddress = (
+  //   await deploy(abiEntryPoint, byteEntryPoint, entryPointOwner, gasOverrides)
+  // ).target.toString();
+
+  const entryPointContractAddress = addresses.ENTRY_POINT;
 
   // const entryPointContract = await Hardhat.ethers.getContractAt(
   //   "EntryPoint",
@@ -154,12 +162,6 @@ async function main() {
       accountFactoryContractAddress,
       provider
     );
-
-  // 取得目前網路的地址
-  // 註：欲解決「Element implicitly has an 'any' type because expression of type 'string' can't be used to index type」的問題：
-  // https://stackoverflow.com/questions/57086672/element-implicitly-has-an-any-type-because-expression-of-type-string-cant-b
-  const addresses =
-    Addresses.addresses[FORK_CHAIN as keyof typeof Addresses.addresses];
 
   // The user exchanges ethers for USDT, which are then transferred to the Account contract.
   const uniswapSwapRouterContract = new Hardhat.ethers.Contract(

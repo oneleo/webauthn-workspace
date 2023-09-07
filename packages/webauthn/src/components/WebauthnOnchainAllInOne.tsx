@@ -276,7 +276,7 @@ export const WebauthnOnchainAllInOne = () => {
       [clientDataJSONPre, clientDataJSONPost]
     );
 
-    const verifyPasskeyAddress = import.meta.env.VITE_ACCOUNT_FACTORY_ADDRESS;
+    const verifyPasskeyAddress = import.meta.env.VITE_VERIFY_PASSKEY_ADDRESS;
 
     const provider = new Ethers.JsonRpcProvider(
       `${import.meta.env.VITE_PROVIDER}`

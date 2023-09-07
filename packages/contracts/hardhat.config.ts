@@ -32,12 +32,12 @@ const FORK_CHAIN_URL =
     : ALCHEMY_MAINNET;
 const FORK_CHAIN_BLOCK =
   FORK_CHAIN === "mainnet"
-    ? 17888888
+    ? 17999999
     : FORK_CHAIN === "sepolia"
-    ? 4111111
+    ? 4222222
     : FORK_CHAIN === "goerli"
-    ? 9533333
-    : 17888888;
+    ? 9555555
+    : 17999999;
 
 const config: HardhatUserConfig = {
   solidity: {

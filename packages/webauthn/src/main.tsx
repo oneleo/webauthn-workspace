@@ -10,10 +10,10 @@ import * as WebauthnAccountAbstraction from "./components/WebauthnAccountAbstrac
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
+    <App />
     <WebauthnLocal.WebauthnLocal />
     <WebauthnOnchainAllInOne.WebauthnOnchainAllInOne />
     <WebauthnOnchain.WebauthnOnchain />
     <WebauthnAccountAbstraction.WebauthnAccountAbstraction />
-    <App />
   </React.StrictMode>
 );

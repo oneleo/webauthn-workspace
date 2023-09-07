@@ -204,6 +204,35 @@ export type COSEPublicKey = {
   set(key: COSEKTP_EC2.y, value: Uint8Array): void;
 };
 
+export type UserOperationStruct = {
+  sender: Ethers.AddressLike;
+  nonce: Ethers.BigNumberish;
+  initCode: Ethers.BytesLike;
+  callData: Ethers.BytesLike;
+  callGasLimit: Ethers.BigNumberish;
+  verificationGasLimit: Ethers.BigNumberish;
+  preVerificationGas: Ethers.BigNumberish;
+  maxFeePerGas: Ethers.BigNumberish;
+  maxPriorityFeePerGas: Ethers.BigNumberish;
+  paymasterAndData: Ethers.BytesLike;
+  signature: Ethers.BytesLike;
+};
+
+export const logUserOp = (userOp: UserOperationStruct) => {
+  console.log(`// [Log] UserOp:\n`);
+  console.log(`sender: ${userOp.sender}\n`);
+  console.log(`nonce: ${userOp.nonce}\n`);
+  console.log(`initCode: ${userOp.initCode}\n`);
+  console.log(`callData: ${userOp.callData}\n`);
+  console.log(`callGasLimit: ${userOp.callGasLimit}\n`);
+  console.log(`verificationGasLimit: ${userOp.verificationGasLimit}\n`);
+  console.log(`preVerificationGas: ${userOp.preVerificationGas}\n`);
+  console.log(`maxFeePerGas: ${userOp.maxFeePerGas}\n`);
+  console.log(`maxPriorityFeePerGas: ${userOp.maxPriorityFeePerGas}\n`);
+  console.log(`paymasterAndData: ${userOp.paymasterAndData}\n`);
+  console.log(`signature: ${userOp.signature}\n`);
+};
+
 export const log = (name: string, value: any) => {
   let jsonString: string;
   try {
