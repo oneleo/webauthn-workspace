@@ -3,6 +3,10 @@
 ## Step 1. Prepare projects' packages
 
 ```
+% git clone https://github.com/oneleo/webauthn-workspace.git
+% cd webauthn-workspace/
+
+% git checkout verify_passkey_contract
 % pnpm install
 ```
 
