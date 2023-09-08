@@ -88,12 +88,24 @@ export const WebauthnAccountAbstraction = () => {
   );
   const [bundlerOwnerEthBalance, setBundlerOwnerEthBalance] =
     React.useState<bigint>(BigInt(0));
+  const [bundlerOwnerEthAdd, setBundlerOwnerEthAdd] = React.useState<bigint>(
+    BigInt(0)
+  );
+  const [gasUsed, setGasUsed] = React.useState<bigint>(BigInt(0));
+  const [maxFeePerGas, setMaxFeePerGas] = React.useState<bigint>(BigInt(0));
+  const [maxPriorityFeePerGas, setMaxPriorityFeePerGas] =
+    React.useState<bigint>(BigInt(0));
+
+  const [buttonDisabled, setButtonDisabled] = React.useState<boolean>(false);
 
   // --------------------
   // --- Render Timer ---
   // --------------------
 
-  const useEffectTimerDepList: React.DependencyList = [accountAddress];
+  const useEffectTimerDepList: React.DependencyList = [
+    accountAddress,
+    bundlerOwnerEthBalance,
+  ];
 
   React.useEffect(() => {
     // 如果 accountAddress 為 0x0 就不執行
@@ -130,6 +142,7 @@ export const WebauthnAccountAbstraction = () => {
         setAccountUsdcBalance(BigInt(0));
         setReceiverEthBalance(BigInt(0));
         setReceiverUsdcBalance(BigInt(0));
+        setBundlerOwnerEthAdd(BigInt(0));
         setBundlerOwnerEthBalance(BigInt(0));
       }
 
@@ -175,6 +188,11 @@ export const WebauthnAccountAbstraction = () => {
         setAccountEthEntryPointBalance(getAccountDepositsResponse[0]);
         setReceiverEthBalance(getReceiverEthResponse);
         setReceiverUsdcBalance(getReceiverUsdcResponse);
+        if (getBundlerOwnerEthResponse !== bundlerOwnerEthBalance) {
+          setBundlerOwnerEthAdd(
+            getBundlerOwnerEthResponse - bundlerOwnerEthBalance
+          );
+        }
         setBundlerOwnerEthBalance(getBundlerOwnerEthResponse);
         // ...
       }
@@ -209,6 +227,15 @@ export const WebauthnAccountAbstraction = () => {
 
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-registration
   const handleCreatePasskey = React.useCallback(async () => {
+    // 操作開始，鎖定所有按鈕
+    setButtonDisabled(true);
+
+    // 清除 Gas 資訊
+    setGasUsed(BigInt(0));
+    setMaxFeePerGas(BigInt(0));
+    setMaxPriorityFeePerGas(BigInt(0));
+    setBundlerOwnerEthAdd(BigInt(0));
+
     // The challenge is produced by the server; see the Security Considerations
     const challengeBase64 = challengeCreate;
 
@@ -396,6 +423,22 @@ export const WebauthnAccountAbstraction = () => {
 
     await createAccountResponse.wait();
 
+    // 取得完整交易資訊
+    const createAccountReceipt = await provider.getTransactionReceipt(
+      createAccountResponse.hash
+    );
+
+    // 如果取得交易資訊，則設置 Gas 資訊
+    if (
+      createAccountReceipt &&
+      createAccountResponse.maxFeePerGas &&
+      createAccountResponse.maxPriorityFeePerGas
+    ) {
+      setMaxFeePerGas(createAccountResponse.maxFeePerGas);
+      setMaxPriorityFeePerGas(createAccountResponse.maxPriorityFeePerGas);
+      setGasUsed(createAccountReceipt.gasUsed);
+    }
+
     // 取得 PasskeyAccount 實例
     const accountContract = typesFactoryAccount.PasskeyManager__factory.connect(
       createAccountStaticCall,
@@ -471,6 +514,8 @@ export const WebauthnAccountAbstraction = () => {
       log("getAccountDepositsResponse", getAccountDepositsResponse);
       log("createAccountStaticCall", createAccountStaticCall);
     }
+    // 操作完成，解鎖全部按鈕
+    setButtonDisabled(false);
 
     // ...
   }, handleCreatePasskeyDepList);
@@ -489,6 +534,12 @@ export const WebauthnAccountAbstraction = () => {
   ];
 
   const handleAddPasskeyToContract = React.useCallback(async () => {
+    // 清除 gasUsed 資訊
+    setGasUsed(BigInt(0));
+    setMaxFeePerGas(BigInt(0));
+    setMaxPriorityFeePerGas(BigInt(0));
+    setBundlerOwnerEthAdd(BigInt(0));
+
     // The challenge is produced by the server; see the Security Considerations
     const challengeBase64 = challengeCreate;
 
@@ -631,6 +682,22 @@ export const WebauthnAccountAbstraction = () => {
 
     await addPasskeyResponse.wait();
 
+    // 取得完整交易資訊
+    const addPasskeyReceipt = await provider.getTransactionReceipt(
+      addPasskeyResponse.hash
+    );
+
+    // 如果取得交易資訊，則設置 Gas 資訊
+    if (
+      addPasskeyReceipt &&
+      addPasskeyResponse.maxFeePerGas &&
+      addPasskeyResponse.maxPriorityFeePerGas
+    ) {
+      setMaxFeePerGas(addPasskeyResponse.maxFeePerGas);
+      setMaxPriorityFeePerGas(addPasskeyResponse.maxPriorityFeePerGas);
+      setGasUsed(addPasskeyReceipt.gasUsed);
+    }
+
     if (debug) {
       const knownEncodedIdHashes: string[] = [];
       // 取得所有已註冊進合約的 credentialID
@@ -641,6 +708,7 @@ export const WebauthnAccountAbstraction = () => {
       }
       log("knownEncodedIdHashes", knownEncodedIdHashes);
     }
+
     // ...
   }, handleAddPasskeyToContractDepList);
 
@@ -658,6 +726,12 @@ export const WebauthnAccountAbstraction = () => {
 
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-authentication
   const handleGetPasskey = React.useCallback(async () => {
+    // 清除 Gas 資訊
+    setGasUsed(BigInt(0));
+    setMaxFeePerGas(BigInt(0));
+    setMaxPriorityFeePerGas(BigInt(0));
+    setBundlerOwnerEthAdd(BigInt(0));
+
     const feeData = await provider.getFeeData();
 
     const gasOverrides: Ethers.Overrides = {
@@ -681,30 +755,13 @@ export const WebauthnAccountAbstraction = () => {
         provider
       );
 
-    // 取得 PasskeyAccount 合約介面
+    // 取得 PasskeyAccount 合約實例與介面
+    const accountContract = typesFactoryAccount.PasskeyManager__factory.connect(
+      accountAddress as string,
+      provider
+    );
     const accountInterface =
       typesFactoryAccount.PasskeyManager__factory.createInterface();
-
-    // 組出 AccountContract 轉送 ETH 與 USDC 的 Calldata
-    const encodeUsdcTransfer = usdcInterface.encodeFunctionData("transfer", [
-      receiver.address,
-      Ethers.parseUnits("1", usdcDecimals),
-    ]);
-
-    const executeArgs = [
-      {
-        // 組出 AccountContract 轉送 ETH 的 Calldata
-        dest: receiver.address, // dest
-        value: Ethers.parseEther("1"), // value
-        func: Ethers.getBytes("0x"), // func
-      },
-      // 組出 AccountContract 轉送 USDC 的 Calldata
-      {
-        dest: usdcContract.target, // dest
-        value: BigInt(0), // value
-        func: encodeUsdcTransfer, // func
-      },
-    ];
 
     // 轉送 USDC 範例參考：
     // https://4337.blocknative.com/ops/0x466860c58814ab8bbf884efd59682ac2dce11bd229cc922a4478582abcc70b57/0
@@ -718,18 +775,56 @@ export const WebauthnAccountAbstraction = () => {
       callGasLimit: BigInt("10000000"),
       // verificationGasLimit 不能 < 1,000,000 否則 AA23 reverted (or OOG)
       verificationGasLimit: BigInt("1000000"),
-      preVerificationGas: Ethers.parseUnits("0.001", "gwei"),
+      preVerificationGas: Ethers.parseUnits("0.01", "gwei"),
       maxFeePerGas: Ethers.parseUnits("10", "gwei"),
       maxPriorityFeePerGas: Ethers.parseUnits("0.1", "gwei"),
       paymasterAndData: "0x",
       signature: "0x",
     };
 
-    userOp.callData = accountInterface.encodeFunctionData("execute", [
-      executeArgs[1].dest,
-      executeArgs[1].value,
-      executeArgs[1].func,
+    const executeArgs = [
+      {
+        // 組出 AccountContract 轉送 USDC 的 Calldata
+        dest: usdcContract.target, // dest
+        value: BigInt(0), // value
+        func: usdcInterface.encodeFunctionData("transfer", [
+          receiver.address,
+          Ethers.parseUnits("1", usdcDecimals),
+        ]), // func
+      },
+      {
+        // 組出 AccountContract 轉送 ETH 的 Calldata
+        dest: receiver.address, // dest
+        value: Ethers.parseEther("1"), // value
+        func: Ethers.getBytes("0x"), // func
+      },
+      {
+        // 組出 AccountContract 轉送 ETH 的 Calldata
+        dest: accountContract.target,
+        value: Ethers.parseEther("0"),
+        func: accountInterface.encodeFunctionData("execute", [
+          receiver.address, // dest
+          Ethers.parseEther("1"), // value
+          Ethers.getBytes("0x"), // func
+        ]),
+      },
+    ];
+
+    userOp.callData = accountInterface.encodeFunctionData("executeBatch", [
+      [executeArgs[0].dest],
+      [executeArgs[0].func],
     ]);
+
+    // userOp.callData = accountInterface.encodeFunctionData("execute", [
+    //   executeArgs[1].dest,
+    //   executeArgs[1].value,
+    //   executeArgs[1].func,
+    // ]);
+
+    // userOp.callData = accountInterface.encodeFunctionData("executeBatch", [
+    //   [executeArgs[2].dest],
+    //   [executeArgs[2].func],
+    // ]);
 
     // 取得 userOpHash
     const userOpHashResponse = await entryPointContract.getUserOpHash(userOp);
@@ -866,10 +961,20 @@ export const WebauthnAccountAbstraction = () => {
 
     await handleOpsResponse.wait();
 
-    if (debug) {
-      log("handleOpsResponse", handleOpsResponse);
-      handleOpsResponse;
-      log("feeData", feeData);
+    // 取得完整交易資訊
+    const handleOpsReceipt = await provider.getTransactionReceipt(
+      handleOpsResponse.hash
+    );
+
+    // 如果取得交易資訊，則設置 Gas 資訊
+    if (
+      handleOpsReceipt &&
+      handleOpsResponse.maxFeePerGas &&
+      handleOpsResponse.maxPriorityFeePerGas
+    ) {
+      setMaxFeePerGas(handleOpsResponse.maxFeePerGas);
+      setMaxPriorityFeePerGas(handleOpsResponse.maxPriorityFeePerGas);
+      setGasUsed(handleOpsReceipt.gasUsed);
     }
 
     // ...
@@ -1020,7 +1125,7 @@ export const WebauthnAccountAbstraction = () => {
           </span>
           <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
             accountEthBalance
-          )}`}</span>
+          )} ETH`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
@@ -1029,15 +1134,15 @@ export const WebauthnAccountAbstraction = () => {
           <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
             accountUsdcBalance,
             usdcDecimals
-          )}`}</span>
+          )} USDC`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            Account deposit ETH Balance
+            Account deposit EntryPoint Balance
           </span>
           <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
             accountEthEntryPointBalance
-          )}`}</span>
+          )} ETH`}</span>
         </div>
         <h2 className="text-2xl font-bold">Get Passkey</h2>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
@@ -1059,7 +1164,7 @@ export const WebauthnAccountAbstraction = () => {
           </span>
           <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
             receiverEthBalance
-          )}`}</span>
+          )} ETH`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
@@ -1068,31 +1173,61 @@ export const WebauthnAccountAbstraction = () => {
           <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
             receiverUsdcBalance,
             usdcDecimals
-          )}`}</span>
+          )} USDC`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            Bundler ETH Balance
+            Bundler Owner ETH Balance
           </span>
-          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
             bundlerOwnerEthBalance
-          )}`}</span>
+          )} ETH`}</span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-green-500">{`(+ ${Ethers.formatEther(
+            bundlerOwnerEthAdd
+          )} ETH)`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            gasUsed
+          </span>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${gasUsed}`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            maxFeePerGas
+          </span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${maxFeePerGas} Wei`}</span>
+          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-red-500">{`(maxFeePerGas x gasUsed = - ${Ethers.formatEther(
+            gasUsed * maxFeePerGas
+          )} ETH)`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            maxPriorityFeePerGas
+          </span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${maxPriorityFeePerGas} Wei`}</span>
+          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-red-500">{`(maxPriorityFeePerGas x gasUsed = - ${Ethers.formatEther(
+            gasUsed * maxPriorityFeePerGas
+          )} ETH)`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <button
             onClick={handleCreatePasskey}
+            disabled={buttonDisabled}
             className="order-1 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
           >
             Create Passkey
           </button>
           <button
             onClick={handleAddPasskeyToContract}
+            disabled={buttonDisabled}
             className="order-2 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
           >
             Add Passkey
           </button>
           <button
             onClick={handleGetPasskey}
+            disabled={buttonDisabled}
             className="order-2 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
           >
             Get Passkey

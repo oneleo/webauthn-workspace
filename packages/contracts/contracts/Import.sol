@@ -14,4 +14,3 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 import "./core/PasskeyManagerFactory.sol";
-import "./core/PasskeyManager.sol";
