@@ -30,12 +30,13 @@ const signers = Ethers.HDNodeWallet.fromMnemonic(
 ).connect(provider);
 
 const [
-  accountOwner,
+  accountNonPasskeyOwner,
   bundlerOwner,
   erc1967ProxyOwner,
   accountFactoryOwner,
   paymasterOwner,
   entryPointOwner,
+  receiver,
 ] = [
   signers.deriveChild(0),
   signers.deriveChild(1),
@@ -43,6 +44,7 @@ const [
   signers.deriveChild(3),
   signers.deriveChild(4),
   signers.deriveChild(5),
+  signers.deriveChild(6),
 ];
 
 const abi = Ethers.AbiCoder.defaultAbiCoder();
@@ -78,9 +80,13 @@ export const WebauthnAccountAbstraction = () => {
   const [accountUsdcBalance, setAccountUsdcBalance] = React.useState<bigint>(
     BigInt(0)
   );
-  const [accountOwnerEthBalance, setAccountOwnerEthBalance] =
-    React.useState<bigint>(BigInt(0));
-  const [accountOwnerUsdcBalance, setAccountOwnerUsdcBalance] =
+  const [receiverEthBalance, setReceiverEthBalance] = React.useState<bigint>(
+    BigInt(0)
+  );
+  const [receiverUsdcBalance, setReceiverUsdcBalance] = React.useState<bigint>(
+    BigInt(0)
+  );
+  const [bundlerOwnerEthBalance, setBundlerOwnerEthBalance] =
     React.useState<bigint>(BigInt(0));
 
   // --------------------
@@ -122,8 +128,9 @@ export const WebauthnAccountAbstraction = () => {
         setAccountEthBalance(BigInt(0));
         setAccountEthEntryPointBalance(BigInt(0));
         setAccountUsdcBalance(BigInt(0));
-        setAccountOwnerEthBalance(BigInt(0));
-        setAccountOwnerUsdcBalance(BigInt(0));
+        setReceiverEthBalance(BigInt(0));
+        setReceiverUsdcBalance(BigInt(0));
+        setBundlerOwnerEthBalance(BigInt(0));
       }
 
       // 偵測鏈上是否已部署此 Account 合約：成功
@@ -146,14 +153,19 @@ export const WebauthnAccountAbstraction = () => {
         // 取得 PasskeyAccount 合約的 Nonce 值
         const getAccountNonceResponse = await accountContract.getNonce();
 
-        // 取得 AccountOwner 的 ETH 餘額
-        const getAccountOwnerEthResponse = await provider.getBalance(
-          accountOwner.address
+        // 取得 Receiver 的 ETH 餘額
+        const getReceiverEthResponse = await provider.getBalance(
+          receiver.address
         );
 
-        // 取得 AccountOwner 合約的 USDC 餘額
-        const getAccountOwnerUsdcResponse = await usdcContract.balanceOf(
-          accountOwner.address
+        // 取得 Receiver 合約的 USDC 餘額
+        const getReceiverUsdcResponse = await usdcContract.balanceOf(
+          receiver.address
+        );
+
+        // 取得 BundlerOwner 的 ETH 餘額
+        const getBundlerOwnerEthResponse = await provider.getBalance(
+          bundlerOwner.address
         );
 
         // 設置對應值
@@ -161,9 +173,9 @@ export const WebauthnAccountAbstraction = () => {
         setAccountEthBalance(getAccountEthResponse);
         setAccountUsdcBalance(getAccountUsdcResponse);
         setAccountEthEntryPointBalance(getAccountDepositsResponse[0]);
-        setAccountOwnerEthBalance(getAccountOwnerEthResponse);
-        setAccountOwnerUsdcBalance(getAccountOwnerUsdcResponse);
-
+        setReceiverEthBalance(getReceiverEthResponse);
+        setReceiverUsdcBalance(getReceiverUsdcResponse);
+        setBundlerOwnerEthBalance(getBundlerOwnerEthResponse);
         // ...
       }
     };
@@ -171,7 +183,7 @@ export const WebauthnAccountAbstraction = () => {
     // 設置計數器
     let id = setInterval(() => {
       asyncFunction().catch((e) => console.log(e));
-    }, 1000);
+    }, 3333); // 每 3.333 秒執行一次
 
     // 這邊的 return 如同 componentWillUnmount() 函數
     // 當此時 useEffect 要 unmount 時會將目前的計數器 id 刪除
@@ -391,10 +403,12 @@ export const WebauthnAccountAbstraction = () => {
     );
 
     // 轉 ETH 至 PasskeyAccount 合約
-    const sendAccountEthResponse = await accountOwner.sendTransaction({
-      to: accountContract.target,
-      ...gasOverridesWithValue,
-    });
+    const sendAccountEthResponse = await accountNonPasskeyOwner.sendTransaction(
+      {
+        to: accountContract.target,
+        ...gasOverridesWithValue,
+      }
+    );
 
     await sendAccountEthResponse.wait();
 
@@ -404,7 +418,7 @@ export const WebauthnAccountAbstraction = () => {
 
     // 轉 USDC 至 PasskeyAccount 合約
     const sendAccountUsdcResponse = await usdcContract
-      .connect(accountOwner)
+      .connect(accountNonPasskeyOwner)
       .transfer(
         accountContract.target,
         Ethers.parseUnits("999", usdcDecimalsResponse),
@@ -416,7 +430,7 @@ export const WebauthnAccountAbstraction = () => {
     // PasskeyAccount 合約存 ETH 至 entryPoint 合約
     // 以及再轉 ETH 至 PasskeyAccount 合約
     const addAccountDepositResponse = await accountContract
-      .connect(accountOwner)
+      .connect(accountNonPasskeyOwner)
       .addDeposit(gasOverridesWithValue);
 
     await addAccountDepositResponse.wait();
@@ -448,7 +462,7 @@ export const WebauthnAccountAbstraction = () => {
       accountContract.target
     );
 
-    //（為 zero 地址）取得 PasskeyAccount 合約登記的 Owner
+    //（總是為 zero 地址）取得 PasskeyAccount 合約登記的 Owner
     // const getAccountOwnerResponse = await accountContract.owner();
 
     if (debug) {
@@ -607,7 +621,7 @@ export const WebauthnAccountAbstraction = () => {
 
     // 增加 Passkey 至 PasskeyAccount
     const addPasskeyResponse = await accountContract
-      .connect(accountOwner)
+      .connect(accountNonPasskeyOwner)
       .addPasskey(
         credentialIdBase64,
         credentialPublicKeyXUint256,
@@ -652,8 +666,6 @@ export const WebauthnAccountAbstraction = () => {
       maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
     };
 
-    log("feeData", feeData);
-
     // 取得 USDC 合約實例與介面
     const usdcContract = typesERC20.ERC20__factory.connect(
       usdcAddress,
@@ -669,25 +681,20 @@ export const WebauthnAccountAbstraction = () => {
         provider
       );
 
-    // 取得 PasskeyAccount 合約實例
-    const accountContract = typesFactoryAccount.PasskeyManager__factory.connect(
-      accountAddress as string,
-      provider
-    );
-
+    // 取得 PasskeyAccount 合約介面
     const accountInterface =
       typesFactoryAccount.PasskeyManager__factory.createInterface();
 
     // 組出 AccountContract 轉送 ETH 與 USDC 的 Calldata
     const encodeUsdcTransfer = usdcInterface.encodeFunctionData("transfer", [
-      accountOwner.address,
+      receiver.address,
       Ethers.parseUnits("1", usdcDecimals),
     ]);
 
     const executeArgs = [
       {
         // 組出 AccountContract 轉送 ETH 的 Calldata
-        dest: accountOwner.address, // dest
+        dest: receiver.address, // dest
         value: Ethers.parseEther("1"), // value
         func: Ethers.getBytes("0x"), // func
       },
@@ -699,20 +706,21 @@ export const WebauthnAccountAbstraction = () => {
       },
     ];
 
-    // 轉送 USDC 範例：
+    // 轉送 USDC 範例參考：
     // https://4337.blocknative.com/ops/0x466860c58814ab8bbf884efd59682ac2dce11bd229cc922a4478582abcc70b57/0
 
-    // Get userOp sig by Builder
     const userOp: Helpers.UserOperationStruct = {
       sender: accountAddress as string,
       nonce: accountNonce,
       initCode: "0x",
       callData: "0x",
-      callGasLimit: gasOverrides.gasLimit!,
-      verificationGasLimit: BigInt("9999999"),
-      preVerificationGas: BigInt("9999999"),
-      maxFeePerGas: gasOverrides.maxFeePerGas!,
-      maxPriorityFeePerGas: gasOverrides.maxPriorityFeePerGas!,
+      // callGasLimit 不能 > gasLimit 否則 AA95 out of gas
+      callGasLimit: BigInt("10000000"),
+      // verificationGasLimit 不能 < 1,000,000 否則 AA23 reverted (or OOG)
+      verificationGasLimit: BigInt("1000000"),
+      preVerificationGas: Ethers.parseUnits("0.001", "gwei"),
+      maxFeePerGas: Ethers.parseUnits("10", "gwei"),
+      maxPriorityFeePerGas: Ethers.parseUnits("0.1", "gwei"),
       paymasterAndData: "0x",
       signature: "0x",
     };
@@ -844,7 +852,7 @@ export const WebauthnAccountAbstraction = () => {
         signatureRUint256,
         signatureSUint256,
         authenticatorDataHex,
-        clientDataJSONPreUtf8,
+        clientDataJSONPreUtf8, // "123", // AA23 reverted: PM07: Invalid signature
         clientDataJSONPostUtf8,
         credentialIdKeccak256,
       ]
@@ -857,6 +865,12 @@ export const WebauthnAccountAbstraction = () => {
       .handleOps([userOp], bundlerOwner.address, gasOverrides);
 
     await handleOpsResponse.wait();
+
+    if (debug) {
+      log("handleOpsResponse", handleOpsResponse);
+      handleOpsResponse;
+      log("feeData", feeData);
+    }
 
     // ...
   }, handleGetPasskeyDepList);
@@ -1004,9 +1018,8 @@ export const WebauthnAccountAbstraction = () => {
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             Account ETH Balance
           </span>
-          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
-            accountEthBalance,
-            18
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
+            accountEthBalance
           )}`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
@@ -1022,27 +1035,8 @@ export const WebauthnAccountAbstraction = () => {
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             Account deposit ETH Balance
           </span>
-          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
-            accountEthEntryPointBalance,
-            18
-          )}`}</span>
-        </div>
-        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            Owner ETH Balance
-          </span>
-          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
-            accountOwnerEthBalance,
-            18
-          )}`}</span>
-        </div>
-        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            Owner USDC Balance
-          </span>
-          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
-            accountOwnerUsdcBalance,
-            usdcDecimals
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
+            accountEthEntryPointBalance
           )}`}</span>
         </div>
         <h2 className="text-2xl font-bold">Get Passkey</h2>
@@ -1058,6 +1052,31 @@ export const WebauthnAccountAbstraction = () => {
           >
             {ReactParser.default(credentialIdSelectArray.join(""))}
           </select>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Receiver ETH Balance
+          </span>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
+            receiverEthBalance
+          )}`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Receiver USDC Balance
+          </span>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
+            receiverUsdcBalance,
+            usdcDecimals
+          )}`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Bundler ETH Balance
+          </span>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
+            bundlerOwnerEthBalance
+          )}`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <button

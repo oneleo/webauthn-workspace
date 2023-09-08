@@ -14,6 +14,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <WebauthnLocal.WebauthnLocal />
     <WebauthnOnchainAllInOne.WebauthnOnchainAllInOne />
     <WebauthnOnchain.WebauthnOnchain />
-    <WebauthnAccountAbstraction.WebauthnAccountAbstraction />
+    {/* <WebauthnAccountAbstraction.WebauthnAccountAbstraction /> */}
   </React.StrictMode>
 );

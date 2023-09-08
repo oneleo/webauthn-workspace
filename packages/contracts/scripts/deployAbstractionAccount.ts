@@ -78,12 +78,13 @@ async function main() {
   const blockTimeStamp = block ? block.timestamp : 0;
 
   const [
-    accountOwner,
+    accountNonPasskeyOwner,
     bundlerOwner,
     erc1967ProxyOwner,
     accountFactoryOwner,
     paymasterOwner,
     entryPointOwner,
+    receiver,
   ] = signers;
 
   // Declare the gas overrides argument.
@@ -167,17 +168,17 @@ async function main() {
   const uniswapSwapRouterContract = new Hardhat.ethers.Contract(
     addresses.UNISWAP_SWAP_ROUTER,
     abiUniswapSwapRouter,
-    accountOwner
+    accountNonPasskeyOwner
   );
 
-  const buyAccountOwnerUsdcResponse =
+  const buyAccountNonPasskeyOwnerUsdcResponse =
     await uniswapSwapRouterContract.exactInputSingle(
       {
         tokenIn: addresses.WETH,
         tokenOut: addresses.USDC,
         // 1% == 10000, 0.3% == 3000, 0.05% == 500, 0.01 == 100
         fee: 3000,
-        recipient: accountOwner.address,
+        recipient: accountNonPasskeyOwner.address,
         deadline: BigInt(blockTimeStamp + 600),
         amountIn: gasOverridesWithValue.value,
         amountOutMinimum: BigInt(0),
@@ -186,7 +187,7 @@ async function main() {
       gasOverridesWithValue
     );
 
-  await buyAccountOwnerUsdcResponse.wait();
+  await buyAccountNonPasskeyOwnerUsdcResponse.wait();
 
   // 取得 USDC 合約實例
   const usdcContract = typesERC20.ERC20__factory.connect(
@@ -199,7 +200,7 @@ async function main() {
     await deploy(
       abiVerifyPasskey,
       byteVerifyPasskey,
-      accountOwner,
+      accountNonPasskeyOwner,
       gasOverrides
     )
   ).target.toString();
@@ -218,16 +219,19 @@ async function main() {
 
   await addPaymasterDepositResponse.wait();
 
-  // 取得 accountOwner 的 USDC 餘額
-  const getAccountOwnerEthResponse = await usdcContract.balanceOf(
-    accountOwner.address
+  // 取得 accountNonPasskeyOwner 的 USDC 餘額
+  const getAccountNonPasskeyOwnerEthResponse = await usdcContract.balanceOf(
+    accountNonPasskeyOwner.address
   );
   // 取得 paymaster 在 entryPoint 的 ETH 餘額
   const getPaymasterDepositResponse = await entryPointContract.deposits(
     paymasterContractAddress
   );
 
-  log("getAccountOwnerEthResponse", getAccountOwnerEthResponse);
+  log(
+    "getAccountNonPasskeyOwnerEthResponse",
+    getAccountNonPasskeyOwnerEthResponse
+  );
   log("getPaymasterDepositResponse", getPaymasterDepositResponse);
   // Display contract addresses.
   log("entryPoint address", entryPointContract.target);
