@@ -84,7 +84,6 @@ async function main() {
     accountFactoryOwner,
     paymasterOwner,
     entryPointOwner,
-    receiver,
   ] = signers;
 
   // Declare the gas overrides argument.

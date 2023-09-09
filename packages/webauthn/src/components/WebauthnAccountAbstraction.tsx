@@ -4,7 +4,6 @@ import * as ReactParser from "html-react-parser";
 import * as Ethers from "ethers";
 import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 import * as WebauthnBrowser from "@simplewebauthn/browser";
-import * as UserOp from "userop";
 
 import * as Helpers from "../helpers/helpers";
 
@@ -17,6 +16,26 @@ import * as typesVerifyPasskey from "../../typechain-types/factories/contracts/V
 import { log, defaultPasskey, InputId } from "../helpers/helpers";
 
 const debug = true;
+
+const defaultHardhatBalance = Ethers.parseEther("10000");
+const defaultOverridesValue = Ethers.parseEther("33");
+const defaultAccountSalt = BigInt("333666999");
+const defaultUserOp: Helpers.UserOperationStruct = {
+  sender: Ethers.ZeroAddress,
+  nonce: BigInt("0"),
+  initCode: "0x",
+  callData: "0x",
+  // callGasLimit 不能 > gasLimit 否則 AA95 out of gas
+  callGasLimit: BigInt("10000000"),
+  // verificationGasLimit 不能 < 1,000,000 否則 AA23 reverted (or OOG)
+  verificationGasLimit: BigInt("1000000"),
+  // preVerificationGas 若 < 10,000,000，則 Bundler 的收益可能是負的
+  preVerificationGas: BigInt("10000000"),
+  maxFeePerGas: Ethers.parseUnits("10", "gwei"),
+  maxPriorityFeePerGas: Ethers.parseUnits("0.1", "gwei"),
+  paymasterAndData: "0x",
+  signature: "0x",
+};
 
 const usdcAddress = import.meta.env.VITE_USDC_ADDRESS;
 const entryPointAddress = import.meta.env.VITE_ENTRY_POINT_ADDRESS;
@@ -44,7 +63,7 @@ const [
   signers.deriveChild(3),
   signers.deriveChild(4),
   signers.deriveChild(5),
-  signers.deriveChild(6),
+  signers.deriveChild(20),
 ];
 
 const abi = Ethers.AbiCoder.defaultAbiCoder();
@@ -66,16 +85,17 @@ export const WebauthnAccountAbstraction = () => {
     false // false = "cross-platform", true = "platform"
   );
   const [usdcDecimals, setUsdcDecimals] = React.useState<bigint>(BigInt(0));
-  const [accountSalt, setAccountSalt] = React.useState<bigint>(
-    BigInt(333666999)
-  );
+  const [accountSalt, setAccountSalt] =
+    React.useState<bigint>(defaultAccountSalt);
   const [accountAddress, setAccountAddress] =
     React.useState<Ethers.AddressLike>(Ethers.ZeroAddress);
   const [accountNonce, setAccountNonce] = React.useState<bigint>(BigInt(0));
   const [accountEthBalance, setAccountEthBalance] = React.useState<bigint>(
-    BigInt(0)
+    defaultOverridesValue
   );
   const [accountEthEntryPointBalance, setAccountEthEntryPointBalance] =
+    React.useState<bigint>(defaultOverridesValue);
+  const [accountEthEntryPointDiff, setAccountEthEntryPointDiff] =
     React.useState<bigint>(BigInt(0));
   const [accountUsdcBalance, setAccountUsdcBalance] = React.useState<bigint>(
     BigInt(0)
@@ -87,14 +107,27 @@ export const WebauthnAccountAbstraction = () => {
     BigInt(0)
   );
   const [bundlerOwnerEthBalance, setBundlerOwnerEthBalance] =
-    React.useState<bigint>(BigInt(0));
-  const [bundlerOwnerEthAdd, setBundlerOwnerEthAdd] = React.useState<bigint>(
+    React.useState<bigint>(defaultHardhatBalance);
+  const [bundlerOwnerEthDiff, setBundlerOwnerEthDiff] = React.useState<bigint>(
     BigInt(0)
   );
   const [gasUsed, setGasUsed] = React.useState<bigint>(BigInt(0));
-  const [maxFeePerGas, setMaxFeePerGas] = React.useState<bigint>(BigInt(0));
+  const [baseFeePerGas, setBaseFeePerGas] = React.useState<bigint>(BigInt(0));
   const [maxPriorityFeePerGas, setMaxPriorityFeePerGas] =
     React.useState<bigint>(BigInt(0));
+  const [totalFee, setTotalFee] = React.useState<bigint>(BigInt(0));
+  // preVerificationGas: BigInt("10000000"),
+  // maxFeePerGas: Ethers.parseUnits("10", "gwei"),
+  // maxPriorityFeePerGas: Ethers.parseUnits("0.1", "gwei"),
+  const [userOpGasUsed, setUserOpGasUsed] = React.useState<bigint>(BigInt(1));
+  const [userOpPreVerificationGas, setUserOpPreVerificationGas] =
+    React.useState<bigint>(BigInt(0));
+  const [userOpBaseFeePerGas, setUserOpBaseFeePerGas] = React.useState<bigint>(
+    BigInt(0)
+  );
+  const [userOpMaxPriorityFeePerGas, setUserOpMaxPriorityFeePerGas] =
+    React.useState<bigint>(BigInt(0));
+  const [userOpTotalFee, setUserOpTotalFee] = React.useState<bigint>(BigInt(0));
 
   const [buttonDisabled, setButtonDisabled] = React.useState<boolean>(false);
 
@@ -104,6 +137,7 @@ export const WebauthnAccountAbstraction = () => {
 
   const useEffectTimerDepList: React.DependencyList = [
     accountAddress,
+    accountEthEntryPointBalance,
     bundlerOwnerEthBalance,
   ];
 
@@ -138,11 +172,12 @@ export const WebauthnAccountAbstraction = () => {
       if ((await provider.getCode(accountContract.target)) === "0x") {
         setAccountNonce(BigInt(0));
         setAccountEthBalance(BigInt(0));
+        setAccountEthEntryPointDiff(BigInt(0));
         setAccountEthEntryPointBalance(BigInt(0));
         setAccountUsdcBalance(BigInt(0));
         setReceiverEthBalance(BigInt(0));
         setReceiverUsdcBalance(BigInt(0));
-        setBundlerOwnerEthAdd(BigInt(0));
+        setBundlerOwnerEthDiff(BigInt(0));
         setBundlerOwnerEthBalance(BigInt(0));
       }
 
@@ -185,11 +220,16 @@ export const WebauthnAccountAbstraction = () => {
         setAccountNonce(getAccountNonceResponse);
         setAccountEthBalance(getAccountEthResponse);
         setAccountUsdcBalance(getAccountUsdcResponse);
+        if (getAccountDepositsResponse[0] !== accountEthEntryPointBalance) {
+          setAccountEthEntryPointDiff(
+            getAccountDepositsResponse[0] - accountEthEntryPointBalance
+          );
+        }
         setAccountEthEntryPointBalance(getAccountDepositsResponse[0]);
         setReceiverEthBalance(getReceiverEthResponse);
         setReceiverUsdcBalance(getReceiverUsdcResponse);
         if (getBundlerOwnerEthResponse !== bundlerOwnerEthBalance) {
-          setBundlerOwnerEthAdd(
+          setBundlerOwnerEthDiff(
             getBundlerOwnerEthResponse - bundlerOwnerEthBalance
           );
         }
@@ -213,6 +253,25 @@ export const WebauthnAccountAbstraction = () => {
     // ...
   }, useEffectTimerDepList);
 
+  // --------------
+  // --- Helper ---
+  // --------------
+
+  // 清除 Gas 資訊
+  const clearGasInfo = () => {
+    setGasUsed(BigInt(0));
+    setBaseFeePerGas(BigInt(0));
+    setMaxPriorityFeePerGas(BigInt(0));
+    setTotalFee(BigInt(0));
+    setBundlerOwnerEthDiff(BigInt(0));
+
+    setUserOpGasUsed(BigInt(1));
+    setUserOpBaseFeePerGas(BigInt(0));
+    setUserOpMaxPriorityFeePerGas(BigInt(0));
+    setUserOpPreVerificationGas(BigInt(0));
+    setUserOpTotalFee(BigInt(0));
+  };
+
   // ------------------------------
   // --- Create Passkey Handler ---
   // ------------------------------
@@ -231,60 +290,17 @@ export const WebauthnAccountAbstraction = () => {
     setButtonDisabled(true);
 
     // 清除 Gas 資訊
-    setGasUsed(BigInt(0));
-    setMaxFeePerGas(BigInt(0));
-    setMaxPriorityFeePerGas(BigInt(0));
-    setBundlerOwnerEthAdd(BigInt(0));
+    clearGasInfo();
 
     // The challenge is produced by the server; see the Security Considerations
     const challengeBase64 = challengeCreate;
 
-    // 建立唯一的 User 資訊
-    const userDisplayName = user;
-    const name = user.toLowerCase().replace(/[^\w]/g, "");
-    const id = Math.floor(
-      Math.random() * (Math.floor(999999999) - Math.ceil(3333) + 1) +
-        Math.ceil(3333)
-    )
-      .toString()
-      .padStart(9, "0");
-    const userId = `${name}-${id}`;
-    const userName = `${name}-${id}@${defaultPasskey.rpId}`;
-
     // Create Passkey
-    const registrationResponseJSON: WebauthnTypes.RegistrationResponseJSON =
-      await WebauthnBrowser.startRegistration({
-        rp: {
-          name: defaultPasskey.rpName,
-          id: defaultPasskey.rpId,
-        },
-        user: {
-          id: userId,
-          name: userName,
-          displayName: userDisplayName,
-        },
-        challenge: challengeBase64,
-        pubKeyCredParams: [
-          {
-            alg: defaultPasskey.pubKeyCredAlgEs256,
-            type: defaultPasskey.pubKeyCredType,
-          },
-          {
-            alg: defaultPasskey.pubKeyCredAlgRs256,
-            type: defaultPasskey.pubKeyCredType,
-          },
-        ],
-        timeout: defaultPasskey.timeout,
-        excludeCredentials: defaultPasskey.excludeCredentials,
-        authenticatorSelection: {
-          authenticatorAttachment: authAttach,
-          requireResidentKey: defaultPasskey.requireResidentKey,
-          residentKey: defaultPasskey.residentKeyRequirement,
-          userVerification: defaultPasskey.userVerificationRequirement,
-        },
-        attestation: defaultPasskey.attestationConveyancePreference,
-        extensions: defaultPasskey.extensions,
-      } as WebauthnTypes.PublicKeyCredentialCreationOptionsJSON);
+    const registrationResponseJSON = await Helpers.createPasskey(
+      user,
+      challengeBase64,
+      authAttach
+    );
 
     const credentialIdBase64 = registrationResponseJSON.id;
 
@@ -372,7 +388,7 @@ export const WebauthnAccountAbstraction = () => {
     // Declare the gas overrides argument.
     const gasOverridesWithValue: Ethers.Overrides = {
       ...gasOverrides,
-      value: Ethers.parseEther("33"),
+      value: defaultOverridesValue,
     };
 
     // 取得 USDC 合約實例
@@ -429,14 +445,17 @@ export const WebauthnAccountAbstraction = () => {
     );
 
     // 如果取得交易資訊，則設置 Gas 資訊
-    if (
-      createAccountReceipt &&
-      createAccountResponse.maxFeePerGas &&
-      createAccountResponse.maxPriorityFeePerGas
-    ) {
-      setMaxFeePerGas(createAccountResponse.maxFeePerGas);
-      setMaxPriorityFeePerGas(createAccountResponse.maxPriorityFeePerGas);
+    if (createAccountReceipt && createAccountResponse.maxPriorityFeePerGas) {
+      // TotalFee = gasUsed * gasPrice = gasUsed * ( baseFee + maxPriority )
+      // To miner = gasUsed * maxPriority
+      // To burnt = gasUsed * bassFee = TotalFee - To miner
       setGasUsed(createAccountReceipt.gasUsed);
+      setBaseFeePerGas(
+        createAccountReceipt.gasPrice -
+          createAccountResponse.maxPriorityFeePerGas
+      );
+      setMaxPriorityFeePerGas(createAccountResponse.maxPriorityFeePerGas);
+      setTotalFee(createAccountReceipt.gasUsed * createAccountReceipt.gasPrice);
     }
 
     // 取得 PasskeyAccount 實例
@@ -534,61 +553,18 @@ export const WebauthnAccountAbstraction = () => {
   ];
 
   const handleAddPasskeyToContract = React.useCallback(async () => {
-    // 清除 gasUsed 資訊
-    setGasUsed(BigInt(0));
-    setMaxFeePerGas(BigInt(0));
-    setMaxPriorityFeePerGas(BigInt(0));
-    setBundlerOwnerEthAdd(BigInt(0));
+    // 清除 Gas 資訊
+    clearGasInfo();
 
     // The challenge is produced by the server; see the Security Considerations
     const challengeBase64 = challengeCreate;
 
-    // 建立唯一的 User 資訊
-    const userDisplayName = user;
-    const name = user.toLowerCase().replace(/[^\w]/g, "");
-    const id = Math.floor(
-      Math.random() * (Math.floor(999999999) - Math.ceil(3333) + 1) +
-        Math.ceil(3333)
-    )
-      .toString()
-      .padStart(9, "0");
-    const userId = `${name}-${id}`;
-    const userName = `${name}-${id}@${defaultPasskey.rpId}`;
-
     // Create Passkey
-    const registrationResponseJSON: WebauthnTypes.RegistrationResponseJSON =
-      await WebauthnBrowser.startRegistration({
-        rp: {
-          name: defaultPasskey.rpName,
-          id: defaultPasskey.rpId,
-        },
-        user: {
-          id: userId,
-          name: userName,
-          displayName: userDisplayName,
-        },
-        challenge: challengeBase64,
-        pubKeyCredParams: [
-          {
-            alg: defaultPasskey.pubKeyCredAlgEs256,
-            type: defaultPasskey.pubKeyCredType,
-          },
-          {
-            alg: defaultPasskey.pubKeyCredAlgRs256,
-            type: defaultPasskey.pubKeyCredType,
-          },
-        ],
-        timeout: defaultPasskey.timeout,
-        excludeCredentials: defaultPasskey.excludeCredentials,
-        authenticatorSelection: {
-          authenticatorAttachment: authAttach,
-          requireResidentKey: defaultPasskey.requireResidentKey,
-          residentKey: defaultPasskey.residentKeyRequirement,
-          userVerification: defaultPasskey.userVerificationRequirement,
-        },
-        attestation: defaultPasskey.attestationConveyancePreference,
-        extensions: defaultPasskey.extensions,
-      } as WebauthnTypes.PublicKeyCredentialCreationOptionsJSON);
+    const registrationResponseJSON = await Helpers.createPasskey(
+      user,
+      challengeBase64,
+      authAttach
+    );
 
     const credentialIdBase64 = registrationResponseJSON.id;
 
@@ -688,14 +664,16 @@ export const WebauthnAccountAbstraction = () => {
     );
 
     // 如果取得交易資訊，則設置 Gas 資訊
-    if (
-      addPasskeyReceipt &&
-      addPasskeyResponse.maxFeePerGas &&
-      addPasskeyResponse.maxPriorityFeePerGas
-    ) {
-      setMaxFeePerGas(addPasskeyResponse.maxFeePerGas);
-      setMaxPriorityFeePerGas(addPasskeyResponse.maxPriorityFeePerGas);
+    if (addPasskeyReceipt && addPasskeyResponse.maxPriorityFeePerGas) {
+      // TotalFee = gasUsed * gasPrice = gasUsed * ( baseFee + maxPriority )
+      // To miner = gasUsed * maxPriority
+      // To burnt = gasUsed * bassFee = TotalFee - To miner
       setGasUsed(addPasskeyReceipt.gasUsed);
+      setBaseFeePerGas(
+        addPasskeyReceipt.gasPrice - addPasskeyResponse.maxPriorityFeePerGas
+      );
+      setMaxPriorityFeePerGas(addPasskeyResponse.maxPriorityFeePerGas);
+      setTotalFee(addPasskeyReceipt.gasUsed * addPasskeyReceipt.gasPrice);
     }
 
     if (debug) {
@@ -727,10 +705,7 @@ export const WebauthnAccountAbstraction = () => {
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-authentication
   const handleGetPasskey = React.useCallback(async () => {
     // 清除 Gas 資訊
-    setGasUsed(BigInt(0));
-    setMaxFeePerGas(BigInt(0));
-    setMaxPriorityFeePerGas(BigInt(0));
-    setBundlerOwnerEthAdd(BigInt(0));
+    clearGasInfo();
 
     const feeData = await provider.getFeeData();
 
@@ -766,22 +741,6 @@ export const WebauthnAccountAbstraction = () => {
     // 轉送 USDC 範例參考：
     // https://4337.blocknative.com/ops/0x466860c58814ab8bbf884efd59682ac2dce11bd229cc922a4478582abcc70b57/0
 
-    const userOp: Helpers.UserOperationStruct = {
-      sender: accountAddress as string,
-      nonce: accountNonce,
-      initCode: "0x",
-      callData: "0x",
-      // callGasLimit 不能 > gasLimit 否則 AA95 out of gas
-      callGasLimit: BigInt("10000000"),
-      // verificationGasLimit 不能 < 1,000,000 否則 AA23 reverted (or OOG)
-      verificationGasLimit: BigInt("1000000"),
-      preVerificationGas: Ethers.parseUnits("0.01", "gwei"),
-      maxFeePerGas: Ethers.parseUnits("10", "gwei"),
-      maxPriorityFeePerGas: Ethers.parseUnits("0.1", "gwei"),
-      paymasterAndData: "0x",
-      signature: "0x",
-    };
-
     const executeArgs = [
       {
         // 組出 AccountContract 轉送 USDC 的 Calldata
@@ -810,21 +769,27 @@ export const WebauthnAccountAbstraction = () => {
       },
     ];
 
-    userOp.callData = accountInterface.encodeFunctionData("executeBatch", [
-      [executeArgs[0].dest],
-      [executeArgs[0].func],
-    ]);
+    const userOp: Helpers.UserOperationStruct = {
+      ...defaultUserOp,
+      sender: accountAddress as string,
+      nonce: accountNonce,
+      callData: accountInterface.encodeFunctionData("executeBatch", [
+        [executeArgs[0].dest],
+        [executeArgs[0].func],
+      ]),
+      // callData: accountInterface.encodeFunctionData("execute", [
+      //   executeArgs[1].dest,
+      //   executeArgs[1].value,
+      //   executeArgs[1].func,
+      // ])
 
-    // userOp.callData = accountInterface.encodeFunctionData("execute", [
-    //   executeArgs[1].dest,
-    //   executeArgs[1].value,
-    //   executeArgs[1].func,
-    // ]);
+      // callData: accountInterface.encodeFunctionData("executeBatch", [
+      //   [executeArgs[2].dest],
+      //   [executeArgs[2].func],
+      // ])
 
-    // userOp.callData = accountInterface.encodeFunctionData("executeBatch", [
-    //   [executeArgs[2].dest],
-    //   [executeArgs[2].func],
-    // ]);
+      // ...
+    };
 
     // 取得 userOpHash
     const userOpHashResponse = await entryPointContract.getUserOpHash(userOp);
@@ -833,14 +798,11 @@ export const WebauthnAccountAbstraction = () => {
     const challengeHex = userOpHashResponse;
     const challengeBase64 = Helpers.hexToBase64URLString(challengeHex);
 
-    const authenticationResponseJSON: WebauthnTypes.AuthenticationResponseJSON =
-      await WebauthnBrowser.startAuthentication({
-        allowCredentials: [
-          { id: credentialId, type: defaultPasskey.pubKeyCredType },
-        ] as WebauthnTypes.PublicKeyCredentialDescriptorJSON[],
-        userVerification: defaultPasskey.userVerificationRequirement,
-        challenge: challengeBase64,
-      } as WebauthnTypes.PublicKeyCredentialRequestOptionsJSON);
+    // Get Passkey
+    const authenticationResponseJSON = await Helpers.getPasskey(
+      credentialId,
+      challengeBase64
+    );
 
     // 取得 credentialIdKeccak256
     const credentialIdKeccak256 = Ethers.keccak256(
@@ -967,15 +929,36 @@ export const WebauthnAccountAbstraction = () => {
     );
 
     // 如果取得交易資訊，則設置 Gas 資訊
-    if (
-      handleOpsReceipt &&
-      handleOpsResponse.maxFeePerGas &&
-      handleOpsResponse.maxPriorityFeePerGas
-    ) {
-      setMaxFeePerGas(handleOpsResponse.maxFeePerGas);
-      setMaxPriorityFeePerGas(handleOpsResponse.maxPriorityFeePerGas);
+    if (handleOpsReceipt && handleOpsResponse.maxPriorityFeePerGas) {
+      // TotalFee = gasUsed * gasPrice = gasUsed * ( baseFee + maxPriority )
+      // To miner = gasUsed * maxPriority
+      // To burnt = gasUsed * bassFee = TotalFee - To miner
       setGasUsed(handleOpsReceipt.gasUsed);
+      setBaseFeePerGas(
+        handleOpsReceipt.gasPrice - handleOpsResponse.maxPriorityFeePerGas
+      );
+      setMaxPriorityFeePerGas(handleOpsResponse.maxPriorityFeePerGas);
+      setTotalFee(handleOpsReceipt.gasUsed * handleOpsReceipt.gasPrice);
+
+      const userOpEventData = handleOpsReceipt.logs[2].data;
+      const [nonce, success, actualGasCost, actualGasUsed] = abi.decode(
+        ["uint256", "bool", "uint256", "uint256"],
+        userOpEventData
+      );
+
+      log("userOpEventData", userOpEventData);
+
+      setUserOpTotalFee(actualGasCost);
+      setUserOpGasUsed(actualGasUsed);
+      setUserOpPreVerificationGas(BigInt(userOp.preVerificationGas));
+      setUserOpBaseFeePerGas(
+        (actualGasCost as bigint) / (actualGasUsed as bigint) -
+          BigInt(userOp.maxPriorityFeePerGas)
+      );
+      setUserOpMaxPriorityFeePerGas(BigInt(userOp.maxPriorityFeePerGas));
     }
+
+    // 取得 UserOp 相關 Gas 資訊
 
     // ...
   }, handleGetPasskeyDepList);
@@ -1140,9 +1123,12 @@ export const WebauthnAccountAbstraction = () => {
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             Account deposit EntryPoint Balance
           </span>
-          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
             accountEthEntryPointBalance
           )} ETH`}</span>
+          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-red-500">{`(${Ethers.formatEther(
+            accountEthEntryPointDiff
+          )} ETH)`}</span>
         </div>
         <h2 className="text-2xl font-bold">Get Passkey</h2>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
@@ -1176,14 +1162,14 @@ export const WebauthnAccountAbstraction = () => {
           )} USDC`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-emerald-500">
             Bundler Owner ETH Balance
           </span>
           <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
             bundlerOwnerEthBalance
           )} ETH`}</span>
-          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-green-500">{`(+ ${Ethers.formatEther(
-            bundlerOwnerEthAdd
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-emerald-500">{`(+ ${Ethers.formatEther(
+            bundlerOwnerEthDiff
           )} ETH)`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
@@ -1194,21 +1180,34 @@ export const WebauthnAccountAbstraction = () => {
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            maxFeePerGas
+            Base Fee Per Gas
           </span>
-          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${maxFeePerGas} Wei`}</span>
-          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-red-500">{`(maxFeePerGas x gasUsed = - ${Ethers.formatEther(
-            gasUsed * maxFeePerGas
-          )} ETH)`}</span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${baseFeePerGas} Wei`}</span>
+          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x gasUsed = ${Ethers.formatEther(
+            gasUsed * baseFeePerGas
+          )} ETH`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             maxPriorityFeePerGas
           </span>
           <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${maxPriorityFeePerGas} Wei`}</span>
-          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-red-500">{`(maxPriorityFeePerGas x gasUsed = - ${Ethers.formatEther(
+          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x gasUsed = ${Ethers.formatEther(
             gasUsed * maxPriorityFeePerGas
-          )} ETH)`}</span>
+          )} ETH`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <div className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            <p className="text-amber-500">Total Fee</p>
+            <p>(Bundler paid)</p>
+          </div>
+
+          <div className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">
+            <span>{`(Base Fee Per Gas + maxPriorityFeePerGas) x gasUsed = `}</span>
+            <span className="text-amber-500">{`${Ethers.formatEther(
+              totalFee
+            )} ETH`}</span>
+          </div>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <button
@@ -1232,6 +1231,102 @@ export const WebauthnAccountAbstraction = () => {
           >
             Get Passkey
           </button>
+        </div>
+        <div className="m-auto p-3 border-2 border-cyan-500 rounded-lg">
+          <h2 className="text-2xl font-bold">Actual UserOp Gas Info</h2>
+          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+            <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+              Account deposit EntryPoint Balance
+            </span>
+            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
+              accountEthEntryPointBalance
+            )} ETH`}</span>
+            <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-red-500">{`(${Ethers.formatEther(
+              accountEthEntryPointDiff
+            )} ETH)`}</span>
+          </div>
+          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+            <div className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+              <p>UserOp: GasUsed</p>
+              <p>
+                (= Call Gas Used + Verification Gas Used + preVerificationGas)
+              </p>
+            </div>
+            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpGasUsed}`}</span>
+            <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`100% x UserOp Total Fee`}</span>
+          </div>
+          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+            <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-emerald-500">
+              preVerificationGas
+            </span>
+            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpPreVerificationGas}`}</span>
+            <div className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+              <span>{`${
+                userOpGasUsed === BigInt("0")
+                  ? 0
+                  : (userOpPreVerificationGas * BigInt("100")) / userOpGasUsed
+              }% x UserOp Total Fee = `}</span>
+              <span className="text-emerald-500">{`${Ethers.formatEther(
+                userOpGasUsed === BigInt("0")
+                  ? 0
+                  : (userOpPreVerificationGas * userOpTotalFee) / userOpGasUsed
+              )} ETH`}</span>
+            </div>
+          </div>
+          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+            <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-amber-500">
+              Call Gas Used + Verification Gas Used
+            </span>
+            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${
+              userOpGasUsed - userOpPreVerificationGas
+            }`}</span>
+            <div className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+              <span>{`${
+                userOpGasUsed === BigInt("0")
+                  ? 0
+                  : ((userOpGasUsed - userOpPreVerificationGas) *
+                      BigInt("100")) /
+                    userOpGasUsed
+              }% x UserOp Total Fee = `}</span>
+              <span className="text-amber-500">{`${Ethers.formatEther(
+                userOpGasUsed === BigInt("0")
+                  ? 0
+                  : ((userOpGasUsed - userOpPreVerificationGas) *
+                      userOpTotalFee) /
+                      userOpGasUsed
+              )} ETH`}</span>
+            </div>
+          </div>
+          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+            <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+              UserOp: Base Fee Per Gas
+            </span>
+            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpBaseFeePerGas} Wei`}</span>
+            <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x userOpGasUsed = ${Ethers.formatEther(
+              userOpGasUsed * userOpBaseFeePerGas
+            )} ETH`}</span>
+          </div>
+          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+            <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+              UserOp: maxPriorityFeePerGas
+            </span>
+            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpMaxPriorityFeePerGas} Wei`}</span>
+            <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x userOpGasUsed = ${Ethers.formatEther(
+              userOpGasUsed * userOpMaxPriorityFeePerGas
+            )} ETH`}</span>
+          </div>
+          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+            <div className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+              <p>UserOp: Total Fee</p>
+              <p>(Account paid (deposit EntryPoint))</p>
+            </div>
+            <div className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">
+              <span>{`(UserOp Base Fee Per Gas + UserOp maxPriorityFeePerGas) x gasUsed = `}</span>
+              <span className="text-red-500">{`${Ethers.formatEther(
+                userOpTotalFee
+              )} ETH`}</span>
+            </div>
+          </div>
         </div>
       </div>
     </>

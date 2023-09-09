@@ -30,8 +30,7 @@
     "ethers": "^6.7.1",
     "html-react-parser": "^4.2.2",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "userop": "^0.3.3"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@rize-labs/banana-wallet-sdk": "^0.1.28",

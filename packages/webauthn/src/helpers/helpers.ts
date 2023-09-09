@@ -4,6 +4,7 @@
 
 import * as Ethers from "ethers";
 import * as WebauthnTypes from "@simplewebauthn/typescript-types";
+import * as WebauthnBrowser from "@simplewebauthn/browser";
 
 import { isoCBOR, isoBase64URL, isoUint8Array, isoCrypto } from "./iso";
 import * as cose from "./cose";
@@ -662,6 +663,73 @@ export function toHash(
 
   return digest;
 }
+
+// Create Passkey
+export const createPasskey = async (
+  _user: string,
+  _challengeBase64: string,
+  _authAttach: WebauthnTypes.AuthenticatorAttachment
+): Promise<WebauthnTypes.RegistrationResponseJSON> => {
+  // 設置唯一的 User 資訊
+  const userDisplayName = _user;
+  const name = _user.toLowerCase().replace(/[^\w]/g, "");
+  const id = Math.floor(
+    Math.random() * (Math.floor(999999999) - Math.ceil(3333) + 1) +
+      Math.ceil(3333)
+  )
+    .toString()
+    .padStart(9, "0");
+  const userId = `${name}-${id}`;
+  const userName = `${name}-${id}@${defaultPasskey.rpId}`;
+
+  // 新建 Passkey
+  return await WebauthnBrowser.startRegistration({
+    rp: {
+      name: defaultPasskey.rpName,
+      id: defaultPasskey.rpId,
+    },
+    user: {
+      id: userId,
+      name: userName,
+      displayName: userDisplayName,
+    },
+    challenge: _challengeBase64,
+    pubKeyCredParams: [
+      {
+        alg: defaultPasskey.pubKeyCredAlgEs256,
+        type: defaultPasskey.pubKeyCredType,
+      },
+      {
+        alg: defaultPasskey.pubKeyCredAlgRs256,
+        type: defaultPasskey.pubKeyCredType,
+      },
+    ],
+    timeout: defaultPasskey.timeout,
+    excludeCredentials: defaultPasskey.excludeCredentials,
+    authenticatorSelection: {
+      authenticatorAttachment: _authAttach,
+      requireResidentKey: defaultPasskey.requireResidentKey,
+      residentKey: defaultPasskey.residentKeyRequirement,
+      userVerification: defaultPasskey.userVerificationRequirement,
+    },
+    attestation: defaultPasskey.attestationConveyancePreference,
+    extensions: defaultPasskey.extensions,
+  } as WebauthnTypes.PublicKeyCredentialCreationOptionsJSON);
+};
+
+// Get Passkey
+export const getPasskey = async (
+  _credentialId: string,
+  _challengeBase64: string
+): Promise<WebauthnTypes.AuthenticationResponseJSON> => {
+  return await WebauthnBrowser.startAuthentication({
+    allowCredentials: [
+      { id: _credentialId, type: defaultPasskey.pubKeyCredType },
+    ] as WebauthnTypes.PublicKeyCredentialDescriptorJSON[],
+    userVerification: defaultPasskey.userVerificationRequirement,
+    challenge: _challengeBase64,
+  } as WebauthnTypes.PublicKeyCredentialRequestOptionsJSON);
+};
 
 // export const parsingAuthenticatorData = async (attestationObject: string) => {
 //   const attestationObjectBuffer = base64URLStringToBuffer(attestationObject);
