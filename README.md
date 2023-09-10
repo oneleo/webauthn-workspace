@@ -50,6 +50,8 @@
 
 ## Recourses
 
+- Simple WebAuthN
+  - [SimpleWebAuthn](https://github.com/MasterKale/SimpleWebAuthn)
 - Banana Wallet - Passkey contract
   - [passkey-contracts](https://github.com/Banana-Wallet/passkey-contracts)
 - Banana Wallet - Passkey EOA

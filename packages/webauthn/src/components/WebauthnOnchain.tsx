@@ -4,16 +4,16 @@ import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 import * as WebauthnBrowser from "@simplewebauthn/browser";
 
 import * as Helpers from "../helpers/helpers";
-import * as typesFactoryAccountFactory from "../../typechain-types/factories/contracts/core/PasskeyManagerFactory.sol/PassKeyManagerFactory__factory";
-import * as typesVerifyPasskey from "../../typechain-types/factories/contracts/VerifyPasskey__factory";
-
 import { log, defaultPasskey, InputId } from "../helpers/helpers";
+
+import * as typesVerifyPasskey from "../../typechain-types/factories/contracts/VerifyPasskey__factory";
 
 const debug = true;
 
-const accountFactoryContractAddress = import.meta.env
-  .VITE_ACCOUNT_FACTORY_ADDRESS;
+const abi = Ethers.AbiCoder.defaultAbiCoder();
+
 const verifyPasskeyAddress = import.meta.env.VITE_VERIFY_PASSKEY_ADDRESS;
+
 const provider = new Ethers.JsonRpcProvider(`${import.meta.env.VITE_PROVIDER}`);
 
 const signers = Ethers.HDNodeWallet.fromMnemonic(
@@ -22,12 +22,13 @@ const signers = Ethers.HDNodeWallet.fromMnemonic(
 ).connect(provider);
 
 const [
-  accountOwner,
+  accountNonPasskeyOwner,
   bundlerOwner,
   erc1967ProxyOwner,
   accountFactoryOwner,
   paymasterOwner,
   entryPointOwner,
+  receiver,
 ] = [
   signers.deriveChild(0),
   signers.deriveChild(1),
@@ -35,9 +36,8 @@ const [
   signers.deriveChild(3),
   signers.deriveChild(4),
   signers.deriveChild(5),
+  signers.deriveChild(20),
 ];
-
-const abi = Ethers.AbiCoder.defaultAbiCoder();
 
 export const WebauthnOnchain = () => {
   const [user, setUser] = React.useState<string>("user");
@@ -220,7 +220,7 @@ export const WebauthnOnchain = () => {
 
     // 確定合約執行
     const addPaskeyResult = await verifyPasskeyContract
-      .connect(accountOwner)
+      .connect(accountNonPasskeyOwner)
       .addPasskey(
         credentialIdBase64,
         credentialPublicKeyXUint256,

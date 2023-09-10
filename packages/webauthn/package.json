@@ -13,11 +13,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@account-abstraction/contracts": "^0.6.0",
-    "@chainlink/contracts": "^0.6.1",
     "@hexagon/base64": "^1.1.27",
-    "@openzeppelin/contracts": "^4.9.3",
-    "@passwordless-id/webauthn": "^1.2.6",
     "@peculiar/asn1-ecc": "^2.3.6",
     "@peculiar/asn1-schema": "^2.3.6",
     "@simplewebauthn/browser": "^8.0.2",

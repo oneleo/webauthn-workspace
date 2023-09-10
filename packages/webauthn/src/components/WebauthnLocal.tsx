@@ -2,11 +2,9 @@ import * as React from "react";
 import * as Ethers from "ethers";
 import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 import * as WebauthnBrowser from "@simplewebauthn/browser";
+import * as Axios from "axios";
 
 import * as Helpers from "../helpers/helpers";
-
-import Axios from "axios";
-
 import { log, defaultPasskey, InputId } from "../helpers/helpers";
 
 const debug = true;
@@ -276,7 +274,7 @@ export const WebauthnLocal = () => {
         registrationResponseJSON.id
       );
 
-      const bananaRegRresp = await Axios({
+      const bananaRegRresp = await Axios.default({
         url: REGISTRATION_LAMBDA_URL,
         method: "post",
         params: {
@@ -440,7 +438,7 @@ export const WebauthnLocal = () => {
       let signatureValid = false;
       let bananaVerRresp;
       while (!signatureValid) {
-        bananaVerRresp = await Axios({
+        bananaVerRresp = await Axios.default({
           url: VERIFICATION_LAMBDA_URL,
           method: "post",
           params: {

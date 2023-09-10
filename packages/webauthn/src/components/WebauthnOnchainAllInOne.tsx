@@ -11,10 +11,9 @@ import * as Helpers from "../helpers/helpers";
 import { log, defaultPasskey, InputId } from "../helpers/helpers";
 
 import * as WebauthnBrowser from "@simplewebauthn/browser";
-// import * as WebauthnServer from "@simplewebauthn/server";
 import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 
-// 此套件沒有更進一步解析 authData
+// 此套件沒有更進一步解析 authData，故不再採用
 // https://github.com/passwordless-id/webauthn/blob/main/src/authenticators.ts#L33-L41
 // import * as WebauthnPass from "@passwordless-id/webauthn";
 

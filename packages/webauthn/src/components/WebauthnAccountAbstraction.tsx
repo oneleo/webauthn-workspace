@@ -3,39 +3,18 @@ import * as React from "react";
 import * as ReactParser from "html-react-parser";
 import * as Ethers from "ethers";
 import * as WebauthnTypes from "@simplewebauthn/typescript-types";
-import * as WebauthnBrowser from "@simplewebauthn/browser";
 
 import * as Helpers from "../helpers/helpers";
+import { log, defaultPasskey, InputId } from "../helpers/helpers";
 
 import * as typesERC20 from "../../typechain-types/factories/@openzeppelin/contracts/token/ERC20/ERC20__factory";
 import * as typesFactoryEntryPoint from "../../typechain-types/factories/@account-abstraction/contracts/core/EntryPoint__factory";
 import * as typesFactoryAccountFactory from "../../typechain-types/factories/contracts/core/PasskeyManagerFactory.sol/PassKeyManagerFactory__factory";
 import * as typesFactoryAccount from "../../typechain-types/factories/contracts/core/PasskeyManager__factory";
-import * as typesVerifyPasskey from "../../typechain-types/factories/contracts/VerifyPasskey__factory";
-
-import { log, defaultPasskey, InputId } from "../helpers/helpers";
 
 const debug = true;
 
-const defaultHardhatBalance = Ethers.parseEther("10000");
-const defaultOverridesValue = Ethers.parseEther("33");
-const defaultAccountSalt = BigInt("333666999");
-const defaultUserOp: Helpers.UserOperationStruct = {
-  sender: Ethers.ZeroAddress,
-  nonce: BigInt("0"),
-  initCode: "0x",
-  callData: "0x",
-  // callGasLimit 不能 > gasLimit 否則 AA95 out of gas
-  callGasLimit: BigInt("10000000"),
-  // verificationGasLimit 不能 < 1,000,000 否則 AA23 reverted (or OOG)
-  verificationGasLimit: BigInt("1000000"),
-  // preVerificationGas 若 < 10,000,000，則 Bundler 的收益可能是負的
-  preVerificationGas: BigInt("10000000"),
-  maxFeePerGas: Ethers.parseUnits("10", "gwei"),
-  maxPriorityFeePerGas: Ethers.parseUnits("0.1", "gwei"),
-  paymasterAndData: "0x",
-  signature: "0x",
-};
+const abi = Ethers.AbiCoder.defaultAbiCoder();
 
 const usdcAddress = import.meta.env.VITE_USDC_ADDRESS;
 const entryPointAddress = import.meta.env.VITE_ENTRY_POINT_ADDRESS;
@@ -66,7 +45,25 @@ const [
   signers.deriveChild(20),
 ];
 
-const abi = Ethers.AbiCoder.defaultAbiCoder();
+const defaultHardhatBalance = Ethers.parseEther("10000");
+const defaultOverridesValue = Ethers.parseEther("33");
+const defaultAccountSalt = BigInt("333666999");
+const defaultUserOp: Helpers.UserOperationStruct = {
+  sender: Ethers.ZeroAddress,
+  nonce: BigInt("0"),
+  initCode: "0x",
+  callData: "0x",
+  // callGasLimit 不能 > gasLimit 否則 AA95 out of gas
+  callGasLimit: BigInt("10000000"),
+  // verificationGasLimit 不能 < 1,000,000 否則 AA23 reverted (or OOG)
+  verificationGasLimit: BigInt("1000000"),
+  // preVerificationGas 若 < 10,000,000，則 Bundler 的收益可能是負的
+  preVerificationGas: BigInt("10000000"),
+  maxFeePerGas: Ethers.parseUnits("10", "gwei"),
+  maxPriorityFeePerGas: Ethers.parseUnits("0.1", "gwei"),
+  paymasterAndData: "0x",
+  signature: "0x",
+};
 
 export const WebauthnAccountAbstraction = () => {
   const [user, setUser] = React.useState<string>("user");
@@ -624,6 +621,7 @@ export const WebauthnAccountAbstraction = () => {
     )[0] as bigint;
 
     if (debug) {
+      console.warn(`+++ Add Passkey +++`);
       log("credentialIdBase64", credentialIdBase64);
       log("credentialIdKeccak256", credentialIdKeccak256);
     }
@@ -915,8 +913,6 @@ export const WebauthnAccountAbstraction = () => {
       ]
     );
 
-    Helpers.logUserOp(userOp);
-
     const handleOpsResponse = await entryPointContract
       .connect(bundlerOwner)
       .handleOps([userOp], bundlerOwner.address, gasOverrides);
@@ -946,8 +942,7 @@ export const WebauthnAccountAbstraction = () => {
         userOpEventData
       );
 
-      log("userOpEventData", userOpEventData);
-
+      // 取得 UserOp 相關 Gas 資訊
       setUserOpTotalFee(actualGasCost);
       setUserOpGasUsed(actualGasUsed);
       setUserOpPreVerificationGas(BigInt(userOp.preVerificationGas));
@@ -958,7 +953,9 @@ export const WebauthnAccountAbstraction = () => {
       setUserOpMaxPriorityFeePerGas(BigInt(userOp.maxPriorityFeePerGas));
     }
 
-    // 取得 UserOp 相關 Gas 資訊
+    if (debug) {
+      Helpers.logUserOp(userOp);
+    }
 
     // ...
   }, handleGetPasskeyDepList);
