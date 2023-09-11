@@ -19,7 +19,7 @@ import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 
 import * as typesVerifyPasskey from "../../typechain-types/factories/contracts/VerifyPasskey__factory";
 
-export const WebauthnOnchainAllInOne = () => {
+export const WebauthnHardhat = () => {
   const [authAttach, setAuthAttach] =
     React.useState<WebauthnTypes.AuthenticatorAttachment>(
       defaultPasskey.authenticatorAttachment
@@ -276,10 +276,10 @@ export const WebauthnOnchainAllInOne = () => {
     );
     log("clientDataJSONPack", clientDataJSONPack);
 
-    const verifyPasskeyAddress = import.meta.env.VITE_VERIFY_PASSKEY_ADDRESS;
+    const verifyPasskeyAddress = import.meta.env.VITE_HARDHAT_PASSKEY_ADDRESS;
 
     const provider = new Ethers.JsonRpcProvider(
-      `${import.meta.env.VITE_PROVIDER}`
+      `${import.meta.env.VITE_PROVIDER_LOCAL}`
     );
 
     const verifyPasskeyContract =

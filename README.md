@@ -58,3 +58,5 @@
   - [banana-passkey-eoa](https://github.com/Banana-Wallet/banana-passkey-eoa)
 - Passkey verify contract sample:
   - [0x433f0e4f5f8a31084f36c0fccf9ad29aad2ec34f](https://sepolia.etherscan.io/address/0x433f0e4f5f8a31084f36c0fccf9ad29aad2ec34f#readContract) on Sepolia testnet
+- Passkey account abstraction contract sample:
+  - [0x405a1f2C4F725f13bCBd2e22fda0460D4E693fBc](https://sepolia.etherscan.io/address/0x405a1f2C4F725f13bCBd2e22fda0460D4E693fBc) on Sepolia testnet

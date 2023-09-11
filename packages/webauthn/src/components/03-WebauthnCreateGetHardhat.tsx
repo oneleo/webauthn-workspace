@@ -12,9 +12,11 @@ const debug = true;
 
 const abi = Ethers.AbiCoder.defaultAbiCoder();
 
-const verifyPasskeyAddress = import.meta.env.VITE_VERIFY_PASSKEY_ADDRESS;
+const verifyPasskeyAddress = import.meta.env.VITE_HARDHAT_PASSKEY_ADDRESS;
 
-const provider = new Ethers.JsonRpcProvider(`${import.meta.env.VITE_PROVIDER}`);
+const provider = new Ethers.JsonRpcProvider(
+  `${import.meta.env.VITE_PROVIDER_LOCAL}`
+);
 
 const signers = Ethers.HDNodeWallet.fromMnemonic(
   Ethers.Mnemonic.fromPhrase(import.meta.env.VITE_MNEMONIC),
@@ -39,7 +41,7 @@ const [
   signers.deriveChild(20),
 ];
 
-export const WebauthnOnchain = () => {
+export const WebauthnCreateGetHardhat = () => {
   const [user, setUser] = React.useState<string>("user");
   const [challengeCreate, setChallengeCreate] = React.useState<string>(
     Helpers.hexToBase64URLString(Ethers.keccak256("0x123456"))

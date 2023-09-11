@@ -16,11 +16,14 @@ const debug = true;
 
 const abi = Ethers.AbiCoder.defaultAbiCoder();
 
-const usdcAddress = import.meta.env.VITE_USDC_ADDRESS;
+const usdcAddress = import.meta.env.VITE_HARDHAT_USDC_ADDRESS;
 const entryPointAddress = import.meta.env.VITE_ENTRY_POINT_ADDRESS;
-const accountFactoryAddress = import.meta.env.VITE_ACCOUNT_FACTORY_ADDRESS;
+const accountFactoryAddress = import.meta.env
+  .VITE_HARDHAT_ACCOUNT_FACTORY_ADDRESS;
 
-const provider = new Ethers.JsonRpcProvider(`${import.meta.env.VITE_PROVIDER}`);
+const provider = new Ethers.JsonRpcProvider(
+  `${import.meta.env.VITE_PROVIDER_LOCAL}`
+);
 
 const signers = Ethers.HDNodeWallet.fromMnemonic(
   Ethers.Mnemonic.fromPhrase(import.meta.env.VITE_MNEMONIC),
@@ -65,7 +68,7 @@ const defaultUserOp: Helpers.UserOperationStruct = {
   signature: "0x",
 };
 
-export const WebauthnAccountAbstraction = () => {
+export const WebauthnHardhatAccountAbstraction = () => {
   const [user, setUser] = React.useState<string>("user");
   const [challengeCreate, setChallengeCreate] = React.useState<string>(
     Helpers.hexToBase64URLString(Ethers.keccak256("0x123456"))
@@ -412,7 +415,7 @@ export const WebauthnAccountAbstraction = () => {
     // 註：若直接執行 Write 合約是不會有想要的返回值的
     // https://github.com/ethers-io/ethers.js/issues/1102
     const createAccountStaticCall = await accountFactoryContract
-      .connect(accountFactoryOwner)
+      .connect(bundlerOwner)
       .createAccount.staticCall(
         accountSalt,
         credentialIdBase64,
@@ -425,7 +428,7 @@ export const WebauthnAccountAbstraction = () => {
 
     // 確實建立 PasskeyAccount 合約
     const createAccountResponse = await accountFactoryContract
-      .connect(accountFactoryOwner)
+      .connect(bundlerOwner)
       .createAccount(
         accountSalt,
         credentialIdBase64,
@@ -498,7 +501,7 @@ export const WebauthnAccountAbstraction = () => {
     // 註 1：要注意 Ethers V6 合約實例內建 getAddress() 不要與 accountFactory 合約的 getAddress() 搞混
     // 註 2：此函數可在 createAccount() 之前執行，可預先取得 Account 地址
     // const accountAddressFromFactory = await accountFactoryContract
-    //   // .connect(accountFactoryOwner)
+    //   // .connect(bundlerOwner)
     //   .getAddress(
     //     accountSalt,
     //     credentialIdBase64,
