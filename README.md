@@ -41,7 +41,7 @@
 - Start React node
 
 ```
-% pnpm copy:typechain
+% PKG2="webauthn" && pnpm --filter ${PKG2} typechain
 % PKG2="webauthn" && pnpm --filter ${PKG2} dev
 ```
 

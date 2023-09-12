@@ -76,6 +76,9 @@ importers:
       cbor-x:
         specifier: ^1.5.4
         version: 1.5.4
+      contracts:
+        specifier: workspace:^
+        version: link:../contracts
       ethers:
         specifier: ^6.7.1
         version: 6.7.1
@@ -89,6 +92,12 @@ importers:
         specifier: ^18.2.0
         version: 18.2.0(react@18.2.0)
     devDependencies:
+      '@account-abstraction/contracts':
+        specifier: ^0.6.0
+        version: 0.6.0
+      '@openzeppelin/contracts':
+        specifier: ^4.9.3
+        version: 4.9.3
       '@rize-labs/banana-wallet-sdk':
         specifier: ^0.1.28
         version: 0.1.28
@@ -125,6 +134,9 @@ importers:
       tailwindcss:
         specifier: ^3.3.3
         version: 3.3.3
+      typechain:
+        specifier: ^8.3.1
+        version: 8.3.1(typescript@5.0.2)
       typescript:
         specifier: ^5.0.2
         version: 5.0.2

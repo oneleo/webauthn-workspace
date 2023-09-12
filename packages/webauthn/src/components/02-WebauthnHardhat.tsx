@@ -17,7 +17,7 @@ import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 // https://github.com/passwordless-id/webauthn/blob/main/src/authenticators.ts#L33-L41
 // import * as WebauthnPass from "@passwordless-id/webauthn";
 
-import * as typesVerifyPasskey from "../../typechain-types/factories/contracts/VerifyPasskey__factory";
+import * as typesVerifyPasskey from "contracts/typechain-types/factories/contracts/VerifyPasskey__factory";
 
 export const WebauthnHardhat = () => {
   const [authAttach, setAuthAttach] =

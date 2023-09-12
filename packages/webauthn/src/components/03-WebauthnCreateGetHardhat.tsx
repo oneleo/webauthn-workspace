@@ -6,7 +6,7 @@ import * as WebauthnBrowser from "@simplewebauthn/browser";
 import * as Helpers from "../helpers/helpers";
 import { log, defaultPasskey, InputId } from "../helpers/helpers";
 
-import * as typesVerifyPasskey from "../../typechain-types/factories/contracts/VerifyPasskey__factory";
+import * as typesVerifyPasskey from "contracts/typechain-types/factories/contracts/VerifyPasskey__factory";
 
 const debug = true;
 

@@ -7,10 +7,10 @@ import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 import * as Helpers from "../helpers/helpers";
 import { log, defaultPasskey, InputId } from "../helpers/helpers";
 
-import * as typesERC20 from "../../typechain-types/factories/@openzeppelin/contracts/token/ERC20/ERC20__factory";
-import * as typesFactoryEntryPoint from "../../typechain-types/factories/@account-abstraction/contracts/core/EntryPoint__factory";
-import * as typesFactoryAccountFactory from "../../typechain-types/factories/contracts/core/PasskeyManagerFactory.sol/PassKeyManagerFactory__factory";
-import * as typesFactoryAccount from "../../typechain-types/factories/contracts/core/PasskeyManager__factory";
+import * as typesERC20 from "contracts/typechain-types/factories/@openzeppelin/contracts/token/ERC20/ERC20__factory";
+import * as typesFactoryEntryPoint from "contracts/typechain-types/factories/@account-abstraction/contracts/core/EntryPoint__factory";
+import * as typesFactoryAccountFactory from "contracts/typechain-types/factories/contracts/core/PasskeyManagerFactory.sol/PassKeyManagerFactory__factory";
+import * as typesFactoryAccount from "contracts/typechain-types/factories/contracts/core/PasskeyManager__factory";
 
 const debug = true;
 
@@ -1037,7 +1037,7 @@ export const WebauthnHardhatAccountAbstraction = () => {
     <>
       <div className="w-5/6 m-auto p-3 border-2 border-yellow-500 rounded-lg">
         <h1 className="text-3xl font-bold underline">
-          4. WebAuthN Account Abstraction
+          4. WebAuthN Hardhat Account Abstraction
         </h1>
         <h2 className="text-2xl font-bold">Create Passkey</h2>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">

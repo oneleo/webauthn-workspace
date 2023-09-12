@@ -7,10 +7,10 @@ import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 import * as Helpers from "../helpers/helpers";
 import { log, defaultPasskey, InputId } from "../helpers/helpers";
 
-import * as typesERC20 from "../../typechain-types/factories/@openzeppelin/contracts/token/ERC20/ERC20__factory";
-import * as typesFactoryEntryPoint from "../../typechain-types/factories/@account-abstraction/contracts/core/EntryPoint__factory";
-import * as typesFactoryAccountFactory from "../../typechain-types/factories/contracts/core/PasskeyManagerFactory.sol/PassKeyManagerFactory__factory";
-import * as typesFactoryAccount from "../../typechain-types/factories/contracts/core/PasskeyManager__factory";
+import * as typesERC20 from "../../typechain-types/@openzeppelin/factories/ERC20__factory";
+import * as typesFactoryEntryPoint from "../../typechain-types/@account-abstraction/factories/EntryPoint__factory";
+import * as typesFactoryAccountFactory from "../../typechain-types/contracts/factories/PasskeyManagerFactory.sol/PassKeyManagerFactory__factory";
+import * as typesFactoryAccount from "../../typechain-types/contracts/factories/PasskeyManager__factory";
 
 const debug = true;
 
@@ -66,7 +66,7 @@ const defaultUserOp: Helpers.UserOperationStruct = {
   signature: "0x",
 };
 
-export const WebauthnSepoliaAccountAbstraction = () => {
+export const WebauthnOnchainAccountAbstraction = () => {
   const [user, setUser] = React.useState<string>("user");
   const [challengeCreate, setChallengeCreate] = React.useState<string>(
     Helpers.hexToBase64URLString(Ethers.keccak256("0x123456"))
@@ -1041,7 +1041,7 @@ export const WebauthnSepoliaAccountAbstraction = () => {
     <>
       <div className="w-5/6 m-auto p-3 border-2 border-pink-500 rounded-lg">
         <h1 className="text-3xl font-bold underline">
-          5. WebAuthN Account Abstraction
+          5. WebAuthN Onchain Account Abstraction
         </h1>
         <h2 className="text-2xl font-bold">Create Passkey</h2>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
