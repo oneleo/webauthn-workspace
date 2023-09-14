@@ -41,51 +41,12 @@ export const WebauthnLocal = () => {
     // The challenge is produced by the server; see the Security Considerations
     const challengeBase64 = challengeCreate;
 
-    // User
-    const userDisplayName = user;
-    const name = user.toLowerCase().replace(/[^\w]/g, "");
-    const id = Math.floor(
-      Math.random() * (Math.floor(999999999) - Math.ceil(3333) + 1) +
-        Math.ceil(3333)
-    )
-      .toString()
-      .padStart(9, "0");
-    const userId = `${name}-${id}`;
-    const userName = `${name}-${id}@${defaultPasskey.rpId}`;
-
-    const registrationResponseJSON: WebauthnTypes.RegistrationResponseJSON =
-      await WebauthnBrowser.startRegistration({
-        rp: {
-          name: defaultPasskey.rpName,
-          id: defaultPasskey.rpId,
-        },
-        user: {
-          id: userId,
-          name: userName,
-          displayName: userDisplayName,
-        },
-        challenge: challengeBase64,
-        pubKeyCredParams: [
-          {
-            alg: defaultPasskey.pubKeyCredAlgEs256,
-            type: defaultPasskey.pubKeyCredType,
-          },
-          {
-            alg: defaultPasskey.pubKeyCredAlgRs256,
-            type: defaultPasskey.pubKeyCredType,
-          },
-        ],
-        timeout: defaultPasskey.timeout,
-        excludeCredentials: defaultPasskey.excludeCredentials,
-        authenticatorSelection: {
-          authenticatorAttachment: authAttach,
-          requireResidentKey: defaultPasskey.requireResidentKey,
-          residentKey: defaultPasskey.residentKeyRequirement,
-          userVerification: defaultPasskey.userVerificationRequirement,
-        },
-        attestation: defaultPasskey.attestationConveyancePreference,
-        extensions: defaultPasskey.extensions,
-      } as WebauthnTypes.PublicKeyCredentialCreationOptionsJSON);
+    // Create Passkey
+    const registrationResponseJSON = await Helpers.createPasskey(
+      user,
+      challengeBase64,
+      authAttach
+    );
 
     // 取得 credentialIdHex
     const idHex = Helpers.base64URLStringToHex(registrationResponseJSON.id);
@@ -131,7 +92,7 @@ export const WebauthnLocal = () => {
       log("rawIdBase64", registrationResponseJSON.rawId);
       log("typeUtf8", registrationResponseJSON.type);
       log(
-        "clientExtensionResultsUtf8",
+        "clientExtensionResultsJson",
         registrationResponseJSON.clientExtensionResults
       );
       log(
@@ -320,10 +281,10 @@ export const WebauthnLocal = () => {
     // The challenge is produced by the server; see the Security Considerations
     const challengeBase64 = challengeGet;
 
-    const authenticationResponseJSON: WebauthnTypes.AuthenticationResponseJSON =
-      await WebauthnBrowser.startAuthentication({
-        challenge: challengeBase64,
-      } as WebauthnTypes.PublicKeyCredentialRequestOptionsJSON);
+    // Get Passkey
+    const authenticationResponseJSON = await Helpers.getPasskey(
+      challengeBase64
+    );
 
     // 取得 credentialIdHex
     const idHex = Helpers.base64URLStringToHex(authenticationResponseJSON.id);
@@ -367,6 +328,10 @@ export const WebauthnLocal = () => {
       log(
         "authenticationResponseJSON > authenticatorDataBase64",
         authenticatorDataBase64
+      );
+      log(
+        "authenticationResponseJSON > clientExtensionResults",
+        authenticationResponseJSON.clientExtensionResults
       );
 
       // Parse authenticatorData

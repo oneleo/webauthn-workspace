@@ -55,56 +55,18 @@ export const WebauthnHardhat = () => {
     const challengeGetBase64 = Helpers.hexToBase64URLString(challengeGet);
     log("challengeGetBase64", challengeGetBase64);
 
-    // User
-    const user = "user";
-    const userDisplayName = user;
-    const name = user.toLowerCase().replace(/[^\w]/g, "");
-    const id = Math.floor(
-      Math.random() * (Math.floor(999999999) - Math.ceil(3333) + 1) +
-        Math.ceil(3333)
-    )
-      .toString()
-      .padStart(9, "0");
-    const userId = `${name}-${id}`;
-    const userName = `${name}-${id}@${defaultPasskey.rpId}`;
+    const user = "Irara Chen";
 
-    // create 註冊一組新的 Passkey
-    const regResp: WebauthnTypes.RegistrationResponseJSON =
-      await WebauthnBrowser.startRegistration({
-        rp: {
-          name: defaultPasskey.rpName,
-          id: defaultPasskey.rpId,
-        },
-        user: {
-          id: userId,
-          name: userName,
-          displayName: userDisplayName,
-        },
-        challenge: challengeCreateBase64,
-        pubKeyCredParams: [
-          {
-            alg: defaultPasskey.pubKeyCredAlgEs256,
-            type: defaultPasskey.pubKeyCredType,
-          },
-          {
-            alg: defaultPasskey.pubKeyCredAlgRs256,
-            type: defaultPasskey.pubKeyCredType,
-          },
-        ],
-        timeout: defaultPasskey.timeout,
-        excludeCredentials: defaultPasskey.excludeCredentials,
-        authenticatorSelection: {
-          authenticatorAttachment: defaultPasskey.authenticatorAttachment,
-          requireResidentKey: defaultPasskey.requireResidentKey,
-          residentKey: defaultPasskey.residentKeyRequirement,
-          userVerification: defaultPasskey.userVerificationRequirement,
-        },
-        attestation: defaultPasskey.attestationConveyancePreference,
-        extensions: defaultPasskey.extensions,
-      } as WebauthnTypes.PublicKeyCredentialCreationOptionsJSON);
+    // Create Passkey
+    const registrationResponseJSON = await Helpers.createPasskey(
+      user,
+      challengeCreateBase64,
+      authAttach
+    );
 
     // 解析 authData
-    const attestationObject = regResp.response.attestationObject;
+    const attestationObject =
+      registrationResponseJSON.response.attestationObject;
 
     const attestationObjectArray =
       Helpers.isoBase64URL.toBuffer(attestationObject);
@@ -148,19 +110,15 @@ export const WebauthnHardhat = () => {
 
     const abi = Ethers.AbiCoder.defaultAbiCoder();
 
-    // get 使用 Passkey 對 challenge 簽名
-    const authResp: WebauthnTypes.AuthenticationResponseJSON =
-      await WebauthnBrowser.startAuthentication({
-        allowCredentials: [
-          { id: credentialID, type: "public-key" },
-        ] as WebauthnTypes.PublicKeyCredentialDescriptorJSON[],
-        userVerification:
-          "required" as WebauthnTypes.UserVerificationRequirement,
-        challenge: challengeGetBase64,
-      } as WebauthnTypes.PublicKeyCredentialRequestOptionsJSON);
+    // Get Passkey
+    const authenticationResponseJSON = await Helpers.getPasskey(
+      challengeGetBase64,
+      credentialID
+    );
 
     // 取得 authenticatorData
-    const authenticatorDataBase64 = authResp.response.authenticatorData;
+    const authenticatorDataBase64 =
+      authenticationResponseJSON.response.authenticatorData;
     log("authenticatorDataBase64", authenticatorDataBase64);
 
     const authenticatorDataHex = Helpers.base64URLStringToHex(
@@ -175,7 +133,8 @@ export const WebauthnHardhat = () => {
     log("authenticatorDataBase64Bytes", authenticatorDataBase64Bytes);
 
     // 取得 clientDataJSONPre、clientDataJSONChallenge、clientDataJSONPost
-    const clientDataJSONBase64 = authResp.response.clientDataJSON;
+    const clientDataJSONBase64 =
+      authenticationResponseJSON.response.clientDataJSON;
 
     const clientDataJSONBase64Bytes = abi.encode(
       ["string"],
@@ -231,7 +190,7 @@ export const WebauthnHardhat = () => {
     log("clientDataJSONPostHex", clientDataJSONPostHex);
 
     // 取得 signatureR 與 signatureS
-    const signatureBase64 = authResp.response.signature;
+    const signatureBase64 = authenticationResponseJSON.response.signature;
 
     const parsedSignature = Helpers.parseEC2Signature(
       Helpers.isoBase64URL.toBuffer(signatureBase64)
@@ -343,7 +302,7 @@ export const WebauthnHardhat = () => {
     <>
       <div className="w-5/6 m-auto p-3 border-2 border-red-500 rounded-lg">
         <h1 className="text-3xl font-bold underline">
-          2. WebAuthN Onchain All in one
+          2. WebAuthN Hardhat All in one
         </h1>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">

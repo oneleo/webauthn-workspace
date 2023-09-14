@@ -73,10 +73,10 @@ export const WebauthnHardhatAccountAbstraction = () => {
   const [challengeCreate, setChallengeCreate] = React.useState<string>(
     Helpers.hexToBase64URLString(Ethers.keccak256("0x123456"))
   );
-  const [credentialId, setCredentialId] = React.useState<string>("");
-  const [credentialIdSelectArray, setCredentialIdSelectArray] = React.useState<
-    string[]
-  >([]);
+  //   const [credentialId, setCredentialId] = React.useState<string>("");
+  //   const [credentialIdSelectArray, setCredentialIdSelectArray] = React.useState<
+  //     string[]
+  //   >([]);
   const [authAttach, setAuthAttach] =
     React.useState<WebauthnTypes.AuthenticatorAttachment>(
       defaultPasskey.authenticatorAttachment
@@ -281,7 +281,6 @@ export const WebauthnHardhatAccountAbstraction = () => {
     challengeCreate,
     authAttach,
     accountSalt,
-    credentialIdSelectArray,
   ];
 
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-registration
@@ -308,17 +307,9 @@ export const WebauthnHardhatAccountAbstraction = () => {
       Ethers.solidityPacked(["string"], [credentialIdBase64])
     );
 
-    setCredentialId(credentialIdBase64);
-
-    // 紀錄 credentialId 至 React Hook
-    const cisa = credentialIdSelectArray;
-    cisa.push(
-      `<option value="${credentialIdBase64}">${credentialIdBase64}</option>`
-    );
-
     // 注意：要讓 React 確實觸發 re-render，需將 Array State 解開更新
     // https://stackoverflow.com/questions/56266575/why-is-usestate-not-triggering-re-render
-    setCredentialIdSelectArray([...cisa]);
+    // setCredentialIdSelectArray([...cisa]);
 
     // Parse authenticatorData
     const parsedAuthData = Helpers.parseAuthenticatorData(
@@ -353,24 +344,6 @@ export const WebauthnHardhatAccountAbstraction = () => {
 
     if (debug) {
       console.warn(`+++ Create Passkey +++`);
-      log("* credentialIdBase64", credentialIdBase64);
-      log("credentialIdKeccak256", credentialIdKeccak256);
-      log(
-        "* attestationObject > authData > credentialPublicKeyXHex",
-        credentialPublicKeyXHex
-      );
-      log(
-        "* attestationObject > authData > credentialPublicKeyXUint256",
-        credentialPublicKeyXUint256
-      );
-      log(
-        "* attestationObject > authData > credentialPublicKeyYHex",
-        credentialPublicKeyYHex
-      );
-      log(
-        "* attestationObject > authData > credentialPublicKeyYUint256",
-        credentialPublicKeyYUint256
-      );
     }
 
     // 接下來會與合約互動
@@ -528,6 +501,25 @@ export const WebauthnHardhatAccountAbstraction = () => {
     // const getAccountOwnerResponse = await accountContract.owner();
 
     if (debug) {
+      log("* credentialIdBase64", credentialIdBase64);
+      log("credentialIdKeccak256", credentialIdKeccak256);
+      log(
+        "* attestationObject > authData > credentialPublicKeyXHex",
+        credentialPublicKeyXHex
+      );
+      log(
+        "* attestationObject > authData > credentialPublicKeyXUint256",
+        credentialPublicKeyXUint256
+      );
+      log(
+        "* attestationObject > authData > credentialPublicKeyYHex",
+        credentialPublicKeyYHex
+      );
+      log(
+        "* attestationObject > authData > credentialPublicKeyYUint256",
+        credentialPublicKeyYUint256
+      );
+
       log("getAccountEthResponse", getAccountEthResponse);
       log("getAccountUsdcResponse", getAccountUsdcResponse);
       log("getAccountDepositsResponse", getAccountDepositsResponse);
@@ -549,7 +541,6 @@ export const WebauthnHardhatAccountAbstraction = () => {
     authAttach,
     accountSalt,
     accountAddress,
-    credentialIdSelectArray,
   ];
 
   const handleAddPasskeyToContract = React.useCallback(async () => {
@@ -572,15 +563,9 @@ export const WebauthnHardhatAccountAbstraction = () => {
       Ethers.solidityPacked(["string"], [credentialIdBase64])
     );
 
-    // 紀錄 credentialId 至 React Hook
-    const cisa = credentialIdSelectArray;
-    cisa.push(
-      `<option value="${credentialIdBase64}">${credentialIdBase64}</option>`
-    );
-
     // 注意：要讓 React 確實觸發 re-render，需將 Array State 解開更新
     // https://stackoverflow.com/questions/56266575/why-is-usestate-not-triggering-re-render
-    setCredentialIdSelectArray([...cisa]);
+    // setCredentialIdSelectArray([...cisa]);
 
     // Parse authenticatorData
     const parsedAuthData = Helpers.parseAuthenticatorData(
@@ -625,8 +610,6 @@ export const WebauthnHardhatAccountAbstraction = () => {
 
     if (debug) {
       console.warn(`+++ Add Passkey +++`);
-      log("credentialIdBase64", credentialIdBase64);
-      log("credentialIdKeccak256", credentialIdKeccak256);
     }
 
     // 接下來會與合約互動
@@ -678,14 +661,8 @@ export const WebauthnHardhatAccountAbstraction = () => {
     }
 
     if (debug) {
-      const knownEncodedIdHashes: string[] = [];
-      // 取得所有已註冊進合約的 credentialID
-      for (let i = 0; i < cisa.length; i++) {
-        knownEncodedIdHashes.push(
-          await accountContract.KnownEncodedIdHashes(i)
-        );
-      }
-      log("knownEncodedIdHashes", knownEncodedIdHashes);
+      log("credentialIdBase64", credentialIdBase64);
+      log("credentialIdKeccak256", credentialIdKeccak256);
     }
 
     // ...
@@ -696,8 +673,6 @@ export const WebauthnHardhatAccountAbstraction = () => {
   // ---------------------------
 
   const handleGetPasskeyDepList: React.DependencyList = [
-    credentialId,
-    credentialIdSelectArray,
     accountAddress,
     accountNonce,
     usdcDecimals,
@@ -801,13 +776,15 @@ export const WebauthnHardhatAccountAbstraction = () => {
 
     // Get Passkey
     const authenticationResponseJSON = await Helpers.getPasskey(
-      credentialId,
       challengeBase64
     );
 
+    const credentialIdBase64 = authenticationResponseJSON.id;
+    log("xxx credentialIdBase64", credentialIdBase64);
+
     // 取得 credentialIdKeccak256
     const credentialIdKeccak256 = Ethers.keccak256(
-      Ethers.solidityPacked(["string"], [credentialId])
+      Ethers.solidityPacked(["string"], [credentialIdBase64])
     );
 
     const authenticatorDataBase64 =
@@ -860,7 +837,6 @@ export const WebauthnHardhatAccountAbstraction = () => {
 
     if (debug) {
       console.warn(`+++ Get Passkey +++`);
-      log("credentialID", credentialId);
       log("* credentialIDKeccak256", credentialIdKeccak256);
       log("challengeBase64", challengeBase64);
       log("* challengeHex", challengeHex);
@@ -1010,19 +986,13 @@ export const WebauthnHardhatAccountAbstraction = () => {
     handleInputChangeDepList
   );
 
-  const handleSelectChangeDepList: React.DependencyList = [
-    credentialId,
-    credentialIdSelectArray,
-  ];
+  const handleSelectChangeDepList: React.DependencyList = [];
 
   const handleSelectChange = React.useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       // 更新 Select value
       const { id, value } = event.target;
       switch (id) {
-        case InputId[InputId.credentialId]:
-          setCredentialId(value);
-          break;
         default:
           break;
       }
@@ -1131,10 +1101,7 @@ export const WebauthnHardhatAccountAbstraction = () => {
           )} ETH)`}</span>
         </div>
         <h2 className="text-2xl font-bold">Get Passkey</h2>
-        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            Credentials Registered
-          </span>
+        {/* <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <select
             id={`${InputId[InputId.credentialId]}`}
             value={`${credentialId}`}
@@ -1143,7 +1110,7 @@ export const WebauthnHardhatAccountAbstraction = () => {
           >
             {ReactParser.default(credentialIdSelectArray.join(""))}
           </select>
-        </div>
+        </div> */}
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             Receiver ETH Balance

@@ -73,51 +73,12 @@ export const WebauthnCreateGetHardhat = () => {
     // The challenge is produced by the server; see the Security Considerations
     const challengeBase64 = challengeCreate;
 
-    // User
-    const userDisplayName = user;
-    const name = user.toLowerCase().replace(/[^\w]/g, "");
-    const id = Math.floor(
-      Math.random() * (Math.floor(999999999) - Math.ceil(3333) + 1) +
-        Math.ceil(3333)
-    )
-      .toString()
-      .padStart(9, "0");
-    const userId = `${name}-${id}`;
-    const userName = `${name}-${id}@${defaultPasskey.rpId}`;
-
-    const registrationResponseJSON: WebauthnTypes.RegistrationResponseJSON =
-      await WebauthnBrowser.startRegistration({
-        rp: {
-          name: defaultPasskey.rpName,
-          id: defaultPasskey.rpId,
-        },
-        user: {
-          id: userId,
-          name: userName,
-          displayName: userDisplayName,
-        },
-        challenge: challengeBase64,
-        pubKeyCredParams: [
-          {
-            alg: defaultPasskey.pubKeyCredAlgEs256,
-            type: defaultPasskey.pubKeyCredType,
-          },
-          {
-            alg: defaultPasskey.pubKeyCredAlgRs256,
-            type: defaultPasskey.pubKeyCredType,
-          },
-        ],
-        timeout: defaultPasskey.timeout,
-        excludeCredentials: defaultPasskey.excludeCredentials,
-        authenticatorSelection: {
-          authenticatorAttachment: authAttach,
-          requireResidentKey: defaultPasskey.requireResidentKey,
-          residentKey: defaultPasskey.residentKeyRequirement,
-          userVerification: defaultPasskey.userVerificationRequirement,
-        },
-        attestation: defaultPasskey.attestationConveyancePreference,
-        extensions: defaultPasskey.extensions,
-      } as WebauthnTypes.PublicKeyCredentialCreationOptionsJSON);
+    // Create Passkey
+    const registrationResponseJSON = await Helpers.createPasskey(
+      user,
+      challengeBase64,
+      authAttach
+    );
 
     const credentialIdBase64 = registrationResponseJSON.id;
 
@@ -252,14 +213,11 @@ export const WebauthnCreateGetHardhat = () => {
     const challengeBase64 = challengeGet;
     const challengeHex = Helpers.base64URLStringToHex(challengeBase64);
 
-    const authenticationResponseJSON: WebauthnTypes.AuthenticationResponseJSON =
-      await WebauthnBrowser.startAuthentication({
-        allowCredentials: [
-          { id: credentialId, type: defaultPasskey.pubKeyCredType },
-        ] as WebauthnTypes.PublicKeyCredentialDescriptorJSON[],
-        userVerification: defaultPasskey.userVerificationRequirement,
-        challenge: challengeBase64,
-      } as WebauthnTypes.PublicKeyCredentialRequestOptionsJSON);
+    // Get Passkey
+    const authenticationResponseJSON = await Helpers.getPasskey(
+      challengeBase64,
+      credentialId
+    );
 
     // 取得 credentialIdKeccak256
     const credentialIdKeccak256 = Ethers.keccak256(
@@ -430,7 +388,7 @@ export const WebauthnCreateGetHardhat = () => {
   return (
     <>
       <div className="w-5/6 m-auto p-3 border-2 border-green-500 rounded-lg">
-        <h1 className="text-3xl font-bold underline">3. WebAuthN Onchain</h1>
+        <h1 className="text-3xl font-bold underline">3. WebAuthN Hardhat</h1>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             User Name
