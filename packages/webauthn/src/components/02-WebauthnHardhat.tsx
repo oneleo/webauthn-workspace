@@ -116,6 +116,11 @@ export const WebauthnHardhat = () => {
       credentialID
     );
 
+    log(
+      "clientExtensionResults",
+      authenticationResponseJSON.clientExtensionResults
+    );
+
     // 取得 authenticatorData
     const authenticatorDataBase64 =
       authenticationResponseJSON.response.authenticatorData;

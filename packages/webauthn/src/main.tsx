@@ -4,8 +4,9 @@ import App from "./App.tsx";
 import "./index.css";
 
 import * as WebauthnLocal from "./components/01-WebauthnLocal.tsx";
-import * as WebauthnCreateGetHardhat from "./components/03-WebauthnCreateGetHardhat.tsx";
+import * as WebauthnLocalExtension from "./components/06-WebauthnLocal.tsx";
 import * as WebauthnHardhat from "./components/02-WebauthnHardhat.tsx";
+import * as WebauthnCreateGetHardhat from "./components/03-WebauthnCreateGetHardhat.tsx";
 import * as WebauthnHardhatAccountAbstraction from "./components/04-WebauthnHardhatAccountAbstraction.tsx";
 import * as WebauthnOnchainAccountAbstraction from "./components/05-WebauthnOnchainAccountAbstraction.tsx";
 
@@ -13,6 +14,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
     <WebauthnLocal.WebauthnLocal />
+    {/* <WebauthnLocalExtension.WebauthnLocalExtension /> */}
     <WebauthnHardhat.WebauthnHardhat />
     <WebauthnCreateGetHardhat.WebauthnCreateGetHardhat />
     <WebauthnHardhatAccountAbstraction.WebauthnHardhatAccountAbstraction />

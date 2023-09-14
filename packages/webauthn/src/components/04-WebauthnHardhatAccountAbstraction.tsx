@@ -841,6 +841,10 @@ export const WebauthnHardhatAccountAbstraction = () => {
       log("challengeBase64", challengeBase64);
       log("* challengeHex", challengeHex);
       log(
+        "clientExtensionResults",
+        authenticationResponseJSON.clientExtensionResults
+      );
+      log(
         "authenticationResponseJSON > authenticatorDataBase64",
         authenticatorDataBase64
       );

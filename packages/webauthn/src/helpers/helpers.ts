@@ -20,6 +20,7 @@ export enum InputId {
   challengeGet,
   authenticatorAttachment,
   accountSalt,
+  extensionData,
 }
 
 /**
@@ -640,7 +641,7 @@ export const defaultPasskey = {
   // Make excludeCredentials check backwards compatible with credentials registered with U2F
   extensions: {
     largeBlob: {
-      support: "required", // "required", "preferred"
+      support: "preferred", // "required", "preferred"
     },
   },
   requireResidentKey: true,
@@ -727,8 +728,10 @@ export const createPasskey = async (
 // Get Passkey
 export const getPasskey = async (
   _challengeBase64: string,
-  _credentialId?: string
+  _credentialId?: string,
+  _extensionData?: string
 ): Promise<WebauthnTypes.AuthenticationResponseJSON> => {
+  const extensions = _extensionData ? _extensionData : "Default Extension Data";
   return await WebauthnBrowser.startAuthentication({
     ...(_credentialId
       ? {
@@ -739,7 +742,7 @@ export const getPasskey = async (
           // https://webauthn-large-blob.glitch.me/
           extensions: {
             largeBlob: {
-              write: isoUint8Array.fromUTF8String("Irara"),
+              write: isoUint8Array.fromUTF8String(extensions),
               // read: true,
             },
           },

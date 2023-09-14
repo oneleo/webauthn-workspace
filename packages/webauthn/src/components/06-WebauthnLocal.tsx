@@ -10,7 +10,7 @@ import { log, defaultPasskey, InputId } from "../helpers/helpers";
 const debug = true;
 const bananaDebug = false;
 
-export const WebauthnLocal = () => {
+export const WebauthnLocalExtension = () => {
   const [user, setUser] = React.useState<string>("user");
   const [challengeCreate, setChallengeCreate] = React.useState<string>(
     Helpers.hexToBase64URLString(Ethers.keccak256("0x123456"))
@@ -18,12 +18,16 @@ export const WebauthnLocal = () => {
   const [challengeGet, setChallengeGet] = React.useState<string>(
     Helpers.hexToBase64URLString(Ethers.keccak256("0x456789"))
   );
+  const [credentialId, setCredentialId] = React.useState<string>("");
   const [authAttach, setAuthAttach] =
     React.useState<WebauthnTypes.AuthenticatorAttachment>(
       defaultPasskey.authenticatorAttachment
     );
   const [authAttachChecked, setAuthAttachChecked] = React.useState<boolean>(
     false // false = "cross-platform", true = "platform"
+  );
+  const [extensionData, setExtensionData] = React.useState<string>(
+    "Default Extension Data"
   );
 
   // ------------------------------
@@ -47,6 +51,10 @@ export const WebauthnLocal = () => {
       challengeBase64,
       authAttach
     );
+
+    const credentialIdBase64 = registrationResponseJSON.id;
+
+    setCredentialId(credentialIdBase64);
 
     // 取得 credentialIdHex
     const idHex = Helpers.base64URLStringToHex(registrationResponseJSON.id);
@@ -87,7 +95,7 @@ export const WebauthnLocal = () => {
     if (debug) {
       console.warn(`+++ Create Passkey +++`);
       //   log("Registration Response JSON", registrationResponseJSON);
-      log("* idBase64", registrationResponseJSON.id);
+      log("* idBase64", credentialIdBase64);
       log("idHex", idHex);
       log("rawIdBase64", registrationResponseJSON.rawId);
       log("typeUtf8", registrationResponseJSON.type);
@@ -270,20 +278,26 @@ export const WebauthnLocal = () => {
     // ...
   }, handleCreatePasskeyDepList);
 
-  // ---------------------------
-  // --- Get Passkey Handler ---
-  // ---------------------------
+  // -------------------------------------------
+  // --- Get Passkey Write Extension Handler ---
+  // -------------------------------------------
 
-  const handleGetPasskeyDepList: React.DependencyList = [challengeGet];
+  const handleGetPasskeyWriteExtensionDepList: React.DependencyList = [
+    challengeGet,
+    credentialId,
+    extensionData,
+  ];
 
   // 參考：https://w3c.github.io/webauthn/#sctn-sample-authentication
-  const handleGetPasskey = React.useCallback(async () => {
+  const handleGetPasskeyWriteExtension = React.useCallback(async () => {
     // The challenge is produced by the server; see the Security Considerations
     const challengeBase64 = challengeGet;
 
     // Get Passkey
     const authenticationResponseJSON = await Helpers.getPasskey(
-      challengeBase64
+      challengeBase64,
+      credentialId,
+      extensionData
     );
 
     // 取得 credentialIdHex
@@ -325,10 +339,6 @@ export const WebauthnLocal = () => {
       log("* idBase64", authenticationResponseJSON.id);
       log("idHex", idHex);
       log("rawIdBase64", authenticationResponseJSON.rawId);
-      log(
-        "clientExtensionResults",
-        authenticationResponseJSON.clientExtensionResults
-      );
       log(
         "authenticationResponseJSON > authenticatorDataBase64",
         authenticatorDataBase64
@@ -432,7 +442,54 @@ export const WebauthnLocal = () => {
     }
 
     // ...
-  }, handleGetPasskeyDepList);
+  }, handleGetPasskeyWriteExtensionDepList);
+
+  // -------------------------------------------
+  // --- Get Passkey Read Extension Handler ---
+  // -------------------------------------------
+
+  const handleGetPasskeyReadExtensionDepList: React.DependencyList = [
+    challengeGet,
+    credentialId,
+  ];
+
+  // 參考：https://w3c.github.io/webauthn/#sctn-sample-authentication
+  const handleGetPasskeyReadExtension = React.useCallback(async () => {
+    // The challenge is produced by the server; see the Security Considerations
+    const challengeBase64 = challengeGet;
+    const challengeArray = Helpers.isoBase64URL.toBuffer(challengeBase64);
+
+    const credentialIdArray = Helpers.isoBase64URL.toBuffer(credentialId);
+
+    // Get Passkey
+    const authenticationResponseJSON =
+      await WebauthnBrowser.startAuthentication({
+        allowCredentials: [
+          { id: credentialId, type: defaultPasskey.pubKeyCredType },
+        ] as WebauthnTypes.PublicKeyCredentialDescriptorJSON[],
+        // largeBlob Demo:
+        // https://webauthn-large-blob.glitch.me/
+        extensions: {
+          largeBlob: {
+            // write: Helpers.isoUint8Array.fromUTF8String(extensionData),
+            read: true,
+          },
+        },
+        userVerification: defaultPasskey.userVerificationRequirement,
+        challenge: challengeBase64,
+      } as WebauthnTypes.PublicKeyCredentialRequestOptionsJSON);
+
+    // const extensionResults = (
+    //   authenticationResponseJSON as any
+    // ).getClientExtensionResults().largeBlob.blob;
+    const extensionResults: any =
+      authenticationResponseJSON.clientExtensionResults;
+
+    log("authenticationResponseJSON", authenticationResponseJSON);
+    log("extensionResults", extensionResults.largeBlob.blob);
+
+    // ...
+  }, handleGetPasskeyReadExtensionDepList);
 
   // ---------------------
   // --- Input Handler ---
@@ -443,6 +500,7 @@ export const WebauthnLocal = () => {
     challengeCreate,
     authAttachChecked,
     authAttach,
+    extensionData,
   ];
 
   const handleInputChange = React.useCallback(
@@ -458,6 +516,9 @@ export const WebauthnLocal = () => {
           break;
         case InputId[InputId.challengeGet]:
           setChallengeGet(value);
+          break;
+        case InputId[InputId.extensionData]:
+          setExtensionData(value);
           break;
         case InputId[InputId.authenticatorAttachment]:
           if (value === "cross-platform") {
@@ -480,7 +541,9 @@ export const WebauthnLocal = () => {
   return (
     <>
       <div className="w-5/6 m-auto p-3 border-2 border-purple-500 rounded-lg">
-        <h1 className="text-3xl font-bold underline">1. WebAuthN Local</h1>
+        <h1 className="text-3xl font-bold underline">
+          2. WebAuthN Local Extension
+        </h1>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             User Name
@@ -519,6 +582,18 @@ export const WebauthnLocal = () => {
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Extension Data
+          </span>
+          <input
+            type="text"
+            id={`${InputId[InputId.extensionData]}`}
+            value={`${extensionData}`}
+            onChange={handleInputChange}
+            className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
+          ></input>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             Authenticator Attachment
           </span>
           <input
@@ -534,15 +609,21 @@ export const WebauthnLocal = () => {
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <button
             onClick={handleCreatePasskey}
-            className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base"
+            className="order-1 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
           >
             Create Passkey
           </button>
           <button
-            onClick={handleGetPasskey}
-            className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base"
+            onClick={handleGetPasskeyWriteExtension}
+            className="order-2 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
           >
-            Get Passkey
+            Get Passkey(Write)
+          </button>
+          <button
+            onClick={handleGetPasskeyReadExtension}
+            className="order-3 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
+          >
+            Get Passkey(Read)
           </button>
         </div>
       </div>
