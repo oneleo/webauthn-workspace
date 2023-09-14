@@ -55,7 +55,7 @@ export const WebauthnHardhat = () => {
     const challengeGetBase64 = Helpers.hexToBase64URLString(challengeGet);
     log("challengeGetBase64", challengeGetBase64);
 
-    const user = "Irara Chen";
+    const user = "user";
 
     // Create Passkey
     const registrationResponseJSON = await Helpers.createPasskey(

@@ -69,7 +69,7 @@ const defaultUserOp: Helpers.UserOperationStruct = {
 };
 
 export const WebauthnHardhatAccountAbstraction = () => {
-  const [user, setUser] = React.useState<string>("user");
+  const [user, setUser] = React.useState<string>("Irara Chen");
   const [challengeCreate, setChallengeCreate] = React.useState<string>(
     Helpers.hexToBase64URLString(Ethers.keccak256("0x123456"))
   );
