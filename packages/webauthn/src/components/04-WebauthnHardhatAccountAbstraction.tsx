@@ -112,22 +112,23 @@ export const WebauthnHardhatAccountAbstraction = () => {
     BigInt(0)
   );
   const [gasUsed, setGasUsed] = React.useState<bigint>(BigInt(0));
-  const [baseFeePerGas, setBaseFeePerGas] = React.useState<bigint>(BigInt(0));
+  const [maxFeePerGas, setMaxFeePerGas] = React.useState<bigint>(BigInt(0));
   const [maxPriorityFeePerGas, setMaxPriorityFeePerGas] =
     React.useState<bigint>(BigInt(0));
-  const [totalFee, setTotalFee] = React.useState<bigint>(BigInt(0));
+  const [gasPrice, setGasPrice] = React.useState<bigint>(BigInt(0));
   // preVerificationGas: BigInt("10000000"),
   // maxFeePerGas: Ethers.parseUnits("10", "gwei"),
   // maxPriorityFeePerGas: Ethers.parseUnits("0.1", "gwei"),
   const [userOpGasUsed, setUserOpGasUsed] = React.useState<bigint>(BigInt(1));
   const [userOpPreVerificationGas, setUserOpPreVerificationGas] =
     React.useState<bigint>(BigInt(0));
-  const [userOpBaseFeePerGas, setUserOpBaseFeePerGas] = React.useState<bigint>(
+  const [userOpMaxFeePerGas, setUserOpMaxFeePerGas] = React.useState<bigint>(
     BigInt(0)
   );
   const [userOpMaxPriorityFeePerGas, setUserOpMaxPriorityFeePerGas] =
     React.useState<bigint>(BigInt(0));
   const [userOpTotalFee, setUserOpTotalFee] = React.useState<bigint>(BigInt(0));
+  const [userOpGasInfo, setUserOpGasInfo] = React.useState<boolean>(false);
 
   const [buttonDisabled, setButtonDisabled] = React.useState<boolean>(false);
 
@@ -260,13 +261,13 @@ export const WebauthnHardhatAccountAbstraction = () => {
   // 清除 Gas 資訊
   const clearGasInfo = () => {
     setGasUsed(BigInt(0));
-    setBaseFeePerGas(BigInt(0));
+    setMaxFeePerGas(BigInt(0));
     setMaxPriorityFeePerGas(BigInt(0));
-    setTotalFee(BigInt(0));
+    setGasPrice(BigInt(0));
     setBundlerOwnerEthDiff(BigInt(0));
 
     setUserOpGasUsed(BigInt(1));
-    setUserOpBaseFeePerGas(BigInt(0));
+    setUserOpMaxFeePerGas(BigInt(0));
     setUserOpMaxPriorityFeePerGas(BigInt(0));
     setUserOpPreVerificationGas(BigInt(0));
     setUserOpTotalFee(BigInt(0));
@@ -418,17 +419,18 @@ export const WebauthnHardhatAccountAbstraction = () => {
     );
 
     // 如果取得交易資訊，則設置 Gas 資訊
-    if (createAccountReceipt && createAccountResponse.maxPriorityFeePerGas) {
+    if (
+      createAccountReceipt &&
+      createAccountResponse.maxPriorityFeePerGas &&
+      createAccountResponse.maxFeePerGas
+    ) {
       // TotalFee = gasUsed * gasPrice = gasUsed * ( baseFee + maxPriority )
       // To miner = gasUsed * maxPriority
       // To burnt = gasUsed * bassFee = TotalFee - To miner
       setGasUsed(createAccountReceipt.gasUsed);
-      setBaseFeePerGas(
-        createAccountReceipt.gasPrice -
-          createAccountResponse.maxPriorityFeePerGas
-      );
+      setMaxFeePerGas(createAccountResponse.maxFeePerGas);
       setMaxPriorityFeePerGas(createAccountResponse.maxPriorityFeePerGas);
-      setTotalFee(createAccountReceipt.gasUsed * createAccountReceipt.gasPrice);
+      setGasPrice(createAccountReceipt.gasPrice);
     }
 
     // 取得 PasskeyAccount 實例
@@ -648,16 +650,18 @@ export const WebauthnHardhatAccountAbstraction = () => {
     );
 
     // 如果取得交易資訊，則設置 Gas 資訊
-    if (addPasskeyReceipt && addPasskeyResponse.maxPriorityFeePerGas) {
+    if (
+      addPasskeyReceipt &&
+      addPasskeyResponse.maxPriorityFeePerGas &&
+      addPasskeyResponse.maxFeePerGas
+    ) {
       // TotalFee = gasUsed * gasPrice = gasUsed * ( baseFee + maxPriority )
       // To miner = gasUsed * maxPriority
       // To burnt = gasUsed * bassFee = TotalFee - To miner
       setGasUsed(addPasskeyReceipt.gasUsed);
-      setBaseFeePerGas(
-        addPasskeyReceipt.gasPrice - addPasskeyResponse.maxPriorityFeePerGas
-      );
+      setMaxFeePerGas(addPasskeyResponse.maxFeePerGas);
       setMaxPriorityFeePerGas(addPasskeyResponse.maxPriorityFeePerGas);
-      setTotalFee(addPasskeyReceipt.gasUsed * addPasskeyReceipt.gasPrice);
+      setGasPrice(addPasskeyReceipt.gasPrice);
     }
 
     if (debug) {
@@ -747,6 +751,12 @@ export const WebauthnHardhatAccountAbstraction = () => {
 
     const userOp: Helpers.UserOperationStruct = {
       ...defaultUserOp,
+      maxFeePerGas: gasOverrides.maxFeePerGas
+        ? gasOverrides.maxFeePerGas
+        : gasOverrides.gasPrice!,
+      maxPriorityFeePerGas: gasOverrides.maxPriorityFeePerGas
+        ? gasOverrides.maxPriorityFeePerGas
+        : gasOverrides.gasPrice!,
       sender: accountAddress as string,
       nonce: accountNonce,
       callData: accountInterface.encodeFunctionData("executeBatch", [
@@ -780,7 +790,6 @@ export const WebauthnHardhatAccountAbstraction = () => {
     );
 
     const credentialIdBase64 = authenticationResponseJSON.id;
-    log("xxx credentialIdBase64", credentialIdBase64);
 
     // 取得 credentialIdKeccak256
     const credentialIdKeccak256 = Ethers.keccak256(
@@ -908,16 +917,18 @@ export const WebauthnHardhatAccountAbstraction = () => {
     );
 
     // 如果取得交易資訊，則設置 Gas 資訊
-    if (handleOpsReceipt && handleOpsResponse.maxPriorityFeePerGas) {
+    if (
+      handleOpsReceipt &&
+      handleOpsResponse.maxPriorityFeePerGas &&
+      handleOpsResponse.maxFeePerGas
+    ) {
       // TotalFee = gasUsed * gasPrice = gasUsed * ( baseFee + maxPriority )
       // To miner = gasUsed * maxPriority
       // To burnt = gasUsed * bassFee = TotalFee - To miner
       setGasUsed(handleOpsReceipt.gasUsed);
-      setBaseFeePerGas(
-        handleOpsReceipt.gasPrice - handleOpsResponse.maxPriorityFeePerGas
-      );
+      setMaxFeePerGas(handleOpsResponse.maxFeePerGas);
       setMaxPriorityFeePerGas(handleOpsResponse.maxPriorityFeePerGas);
-      setTotalFee(handleOpsReceipt.gasUsed * handleOpsReceipt.gasPrice);
+      setGasPrice(handleOpsReceipt.gasPrice);
 
       const userOpEventData = handleOpsReceipt.logs[2].data;
       const [nonce, success, actualGasCost, actualGasUsed] = abi.decode(
@@ -929,10 +940,7 @@ export const WebauthnHardhatAccountAbstraction = () => {
       setUserOpTotalFee(actualGasCost);
       setUserOpGasUsed(actualGasUsed);
       setUserOpPreVerificationGas(BigInt(userOp.preVerificationGas));
-      setUserOpBaseFeePerGas(
-        (actualGasCost as bigint) / (actualGasUsed as bigint) -
-          BigInt(userOp.maxPriorityFeePerGas)
-      );
+      setUserOpMaxFeePerGas(BigInt(userOp.maxFeePerGas));
       setUserOpMaxPriorityFeePerGas(BigInt(userOp.maxPriorityFeePerGas));
     }
 
@@ -942,6 +950,109 @@ export const WebauthnHardhatAccountAbstraction = () => {
 
     // ...
   }, handleGetPasskeyDepList);
+
+  // ------------
+  // --- Form ---
+  // ------------
+
+  const formUserOpGasInfo = () => {
+    return (
+      <>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            Account deposit EntryPoint Balance
+          </span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
+            accountEthEntryPointBalance
+          )} ETH`}</span>
+          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-red-500">{`(${Ethers.formatEther(
+            accountEthEntryPointDiff
+          )} ETH)`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <div className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            <p>UserOp: GasUsed</p>
+            <p>
+              (= Call Gas Used + Verification Gas Used + preVerificationGas)
+            </p>
+          </div>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpGasUsed}`}</span>
+          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`100% x UserOp Total Fee`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-emerald-500">
+            preVerificationGas
+          </span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpPreVerificationGas}`}</span>
+          <div className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            <span>{`${
+              userOpGasUsed === BigInt("0")
+                ? 0
+                : (userOpPreVerificationGas * BigInt("100")) / userOpGasUsed
+            }% x UserOp Total Fee = `}</span>
+            <span className="text-emerald-500">{`${Ethers.formatEther(
+              userOpGasUsed === BigInt("0")
+                ? 0
+                : (userOpPreVerificationGas * userOpTotalFee) / userOpGasUsed
+            )} ETH`}</span>
+          </div>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-amber-500">
+            Call Gas Used + Verification Gas Used
+          </span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${
+            userOpGasUsed - userOpPreVerificationGas
+          }`}</span>
+          <div className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            <span>{`${
+              userOpGasUsed === BigInt("0")
+                ? 0
+                : ((userOpGasUsed - userOpPreVerificationGas) * BigInt("100")) /
+                  userOpGasUsed
+            }% x UserOp Total Fee = `}</span>
+            <span className="text-amber-500">{`${Ethers.formatEther(
+              userOpGasUsed === BigInt("0")
+                ? 0
+                : ((userOpGasUsed - userOpPreVerificationGas) *
+                    userOpTotalFee) /
+                    userOpGasUsed
+            )} ETH`}</span>
+          </div>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            UserOp: userOpMaxFeePerGas
+          </span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpMaxFeePerGas} Wei`}</span>
+          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x userOpGasUsed = ${Ethers.formatEther(
+            userOpGasUsed * userOpMaxFeePerGas
+          )} ETH`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            UserOp: maxPriorityFeePerGas
+          </span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpMaxPriorityFeePerGas} Wei`}</span>
+          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x userOpGasUsed = ${Ethers.formatEther(
+            userOpGasUsed * userOpMaxPriorityFeePerGas
+          )} ETH`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <div className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            <p>UserOp: Total Fee</p>
+            <p>(Account paid (deposit EntryPoint))</p>
+          </div>
+          <div className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">
+            <span>{`userOp:gasPrice x userOp:gasUsed = `}</span>
+            <span className="text-red-500">{`${Ethers.formatEther(
+              userOpTotalFee
+            )} ETH`}</span>
+          </div>
+        </div>
+      </>
+    );
+  };
 
   // ---------------------
   // --- Input Handler ---
@@ -954,6 +1065,7 @@ export const WebauthnHardhatAccountAbstraction = () => {
     accountSalt,
     authAttachChecked,
     authAttach,
+    userOpGasInfo,
   ];
 
   const handleInputChange = React.useCallback(
@@ -978,6 +1090,14 @@ export const WebauthnHardhatAccountAbstraction = () => {
           if (value === "platform") {
             setAuthAttachChecked(false);
             setAuthAttach("cross-platform");
+          }
+          break;
+        case InputId[InputId.userOpGasInfo]:
+          if (value === `${true}`) {
+            setUserOpGasInfo(false);
+          }
+          if (value === `${false}`) {
+            setUserOpGasInfo(true);
           }
           break;
         default:
@@ -1151,11 +1271,11 @@ export const WebauthnHardhatAccountAbstraction = () => {
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            Base Fee Per Gas
+            maxFeePerGas
           </span>
-          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${baseFeePerGas} Wei`}</span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${maxFeePerGas} Wei`}</span>
           <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x gasUsed = ${Ethers.formatEther(
-            gasUsed * baseFeePerGas
+            gasUsed * maxFeePerGas
           )} ETH`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
@@ -1169,14 +1289,13 @@ export const WebauthnHardhatAccountAbstraction = () => {
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <div className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            <p className="text-amber-500">Total Fee</p>
-            <p>(Bundler paid)</p>
+            <p>gasPrice</p>
+            <p className="text-amber-500">(Bundler paid)</p>
           </div>
-
-          <div className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">
-            <span>{`(Base Fee Per Gas + maxPriorityFeePerGas) x gasUsed = `}</span>
-            <span className="text-amber-500">{`${Ethers.formatEther(
-              totalFee
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${gasPrice} Wei`}</span>
+          <div className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            <span className="text-amber-500">{`x gasUsed = ${Ethers.formatEther(
+              gasUsed * gasPrice
             )} ETH`}</span>
           </div>
         </div>
@@ -1204,100 +1323,20 @@ export const WebauthnHardhatAccountAbstraction = () => {
           </button>
         </div>
         <div className="m-auto p-3 border-2 border-cyan-500 rounded-lg">
-          <h2 className="text-2xl font-bold">Actual UserOp Gas Info</h2>
           <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
             <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-              Account deposit EntryPoint Balance
+              UserOp Gas Info (Beta)
             </span>
-            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
-              accountEthEntryPointBalance
-            )} ETH`}</span>
-            <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-red-500">{`(${Ethers.formatEther(
-              accountEthEntryPointDiff
-            )} ETH)`}</span>
+            <input
+              type="checkbox"
+              id={`${InputId[InputId.userOpGasInfo]}`}
+              value={`${userOpGasInfo}`}
+              checked={userOpGasInfo}
+              onChange={handleInputChange}
+              className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
+            ></input>
           </div>
-          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-            <div className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-              <p>UserOp: GasUsed</p>
-              <p>
-                (= Call Gas Used + Verification Gas Used + preVerificationGas)
-              </p>
-            </div>
-            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpGasUsed}`}</span>
-            <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`100% x UserOp Total Fee`}</span>
-          </div>
-          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-            <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-emerald-500">
-              preVerificationGas
-            </span>
-            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpPreVerificationGas}`}</span>
-            <div className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-              <span>{`${
-                userOpGasUsed === BigInt("0")
-                  ? 0
-                  : (userOpPreVerificationGas * BigInt("100")) / userOpGasUsed
-              }% x UserOp Total Fee = `}</span>
-              <span className="text-emerald-500">{`${Ethers.formatEther(
-                userOpGasUsed === BigInt("0")
-                  ? 0
-                  : (userOpPreVerificationGas * userOpTotalFee) / userOpGasUsed
-              )} ETH`}</span>
-            </div>
-          </div>
-          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-            <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-amber-500">
-              Call Gas Used + Verification Gas Used
-            </span>
-            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${
-              userOpGasUsed - userOpPreVerificationGas
-            }`}</span>
-            <div className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-              <span>{`${
-                userOpGasUsed === BigInt("0")
-                  ? 0
-                  : ((userOpGasUsed - userOpPreVerificationGas) *
-                      BigInt("100")) /
-                    userOpGasUsed
-              }% x UserOp Total Fee = `}</span>
-              <span className="text-amber-500">{`${Ethers.formatEther(
-                userOpGasUsed === BigInt("0")
-                  ? 0
-                  : ((userOpGasUsed - userOpPreVerificationGas) *
-                      userOpTotalFee) /
-                      userOpGasUsed
-              )} ETH`}</span>
-            </div>
-          </div>
-          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-            <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-              UserOp: Base Fee Per Gas
-            </span>
-            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpBaseFeePerGas} Wei`}</span>
-            <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x userOpGasUsed = ${Ethers.formatEther(
-              userOpGasUsed * userOpBaseFeePerGas
-            )} ETH`}</span>
-          </div>
-          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-            <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-              UserOp: maxPriorityFeePerGas
-            </span>
-            <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${userOpMaxPriorityFeePerGas} Wei`}</span>
-            <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x userOpGasUsed = ${Ethers.formatEther(
-              userOpGasUsed * userOpMaxPriorityFeePerGas
-            )} ETH`}</span>
-          </div>
-          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-            <div className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-              <p>UserOp: Total Fee</p>
-              <p>(Account paid (deposit EntryPoint))</p>
-            </div>
-            <div className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">
-              <span>{`(UserOp Base Fee Per Gas + UserOp maxPriorityFeePerGas) x gasUsed = `}</span>
-              <span className="text-red-500">{`${Ethers.formatEther(
-                userOpTotalFee
-              )} ETH`}</span>
-            </div>
-          </div>
+          {userOpGasInfo && formUserOpGasInfo()}
         </div>
       </div>
     </>

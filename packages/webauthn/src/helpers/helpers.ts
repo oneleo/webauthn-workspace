@@ -21,6 +21,7 @@ export enum InputId {
   authenticatorAttachment,
   accountSalt,
   extensionData,
+  userOpGasInfo,
 }
 
 /**

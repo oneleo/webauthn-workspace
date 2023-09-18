@@ -1024,9 +1024,6 @@ export const WebauthnOnchainAccountAbstraction = () => {
       // 更新 Select value
       const { id, value } = event.target;
       switch (id) {
-        case InputId[InputId.credentialId]:
-          setCredentialId(value);
-          break;
         default:
           break;
       }
@@ -1135,19 +1132,6 @@ export const WebauthnOnchainAccountAbstraction = () => {
           )} ETH)`}</span>
         </div>
         <h2 className="text-2xl font-bold">Get Passkey</h2>
-        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            Credentials Registered
-          </span>
-          <select
-            id={`${InputId[InputId.credentialId]}`}
-            value={`${credentialId}`}
-            onChange={handleSelectChange}
-            className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
-          >
-            {ReactParser.default(credentialIdSelectArray.join(""))}
-          </select>
-        </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             Receiver ETH Balance
