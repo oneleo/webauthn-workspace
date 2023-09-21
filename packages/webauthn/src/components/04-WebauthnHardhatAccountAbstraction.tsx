@@ -56,12 +56,17 @@ const defaultUserOp: Helpers.UserOperationStruct = {
   nonce: BigInt("0"),
   initCode: "0x",
   callData: "0x",
-  // callGasLimit 不能 > gasLimit 否則 AA95 out of gas
+  // userOp.callGasLimit + userOp.verificationGasLimit + 5000 不能 > tx.gasLimit，否則 AA95 out of gas
+  // 來源：https://github.com/eth-infinitism/account-abstraction/blob/v0.6.0/contracts/core/EntryPoint.sol#L236
   callGasLimit: BigInt("10000000"),
   // verificationGasLimit 不能 < 1,000,000 否則 AA23 reverted (or OOG)
+  // 當 userOp.verificationGasLimit 的值，不足以支付以執行 Account(sender).validateUserOp() 時；包含 Account(sender) 的餘額無法支付 missingAccountFunds 時
+  // 來源：https://github.com/eth-infinitism/account-abstraction/blob/v0.6.0/contracts/core/EntryPoint.sol#L410
   verificationGasLimit: BigInt("1000000"),
   // preVerificationGas 若 < 10,000,000，則 Bundler 的收益可能是負的
   preVerificationGas: BigInt("10000000"),
+  // (userOp.callGasLimit + userOp.verificationGasLimit * mul + userOp.preVerificationGas) * userOp.maxFeePerGas 不能 > Account(sender) 預存在 EntryPoint 合約中的餘額
+  // 來源：https://github.com/eth-infinitism/account-abstraction/blob/v0.6.0/contracts/core/EntryPoint.sol#L329-L332C43
   maxFeePerGas: Ethers.parseUnits("10", "gwei"),
   maxPriorityFeePerGas: Ethers.parseUnits("0.1", "gwei"),
   paymasterAndData: "0x",
@@ -389,7 +394,8 @@ export const WebauthnHardhatAccountAbstraction = () => {
     // 註：若直接執行 Write 合約是不會有想要的返回值的
     // https://github.com/ethers-io/ethers.js/issues/1102
     const createAccountStaticCall = await accountFactoryContract
-      .connect(bundlerOwner)
+      //   .connect(bundlerOwner)
+      .connect(accountNonPasskeyOwner)
       .createAccount.staticCall(
         accountSalt,
         credentialIdBase64,
@@ -402,7 +408,8 @@ export const WebauthnHardhatAccountAbstraction = () => {
 
     // 確實建立 PasskeyAccount 合約
     const createAccountResponse = await accountFactoryContract
-      .connect(bundlerOwner)
+      //   .connect(bundlerOwner)
+      .connect(accountNonPasskeyOwner)
       .createAccount(
         accountSalt,
         credentialIdBase64,

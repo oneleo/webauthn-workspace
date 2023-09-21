@@ -628,6 +628,8 @@ export const defaultPasskey = {
   authenticatorAttachment:
     "cross-platform" as WebauthnTypes.AuthenticatorAttachment,
   // 參數 requireResidentKey 及 residentKeyRequirement 會要求驗證器是否支援可發現憑證（Supports resident keys = passkey）
+  // 經測試，若使用 Server-side Credential（residentKeyRequirement = discouraged），在 Get 階段，指定 Credential Id 的話，也是可以順利驗證成功
+  // 若沒有給予 Credential Id，會顯示：「您目前使用的安全金鑰並未在這個網站註冊」錯誤
   residentKeyRequirement: "required" as ResidentKeyRequirement,
   // 參數 userVerificationRequirement 會要求驗證器是否支援用戶驗證（Supports user verification）
   userVerificationRequirement:
