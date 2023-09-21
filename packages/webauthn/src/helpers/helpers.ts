@@ -22,6 +22,7 @@ export enum InputId {
   accountSalt,
   extensionData,
   userOpGasInfo,
+  transactionGasInfo,
 }
 
 /**

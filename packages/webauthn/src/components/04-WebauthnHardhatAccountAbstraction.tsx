@@ -108,9 +108,13 @@ export const WebauthnHardhatAccountAbstraction = () => {
   const [receiverEthBalance, setReceiverEthBalance] = React.useState<bigint>(
     BigInt(0)
   );
+  const [receiverEthBalanceDiff, setReceiverEthBalanceDiff] =
+    React.useState<bigint>(BigInt(0));
   const [receiverUsdcBalance, setReceiverUsdcBalance] = React.useState<bigint>(
     BigInt(0)
   );
+  const [receiverUsdcBalanceDiff, setReceiverUsdcBalanceDiff] =
+    React.useState<bigint>(BigInt(0));
   const [bundlerOwnerEthBalance, setBundlerOwnerEthBalance] =
     React.useState<bigint>(defaultHardhatBalance);
   const [bundlerOwnerEthDiff, setBundlerOwnerEthDiff] = React.useState<bigint>(
@@ -134,7 +138,8 @@ export const WebauthnHardhatAccountAbstraction = () => {
     React.useState<bigint>(BigInt(0));
   const [userOpTotalFee, setUserOpTotalFee] = React.useState<bigint>(BigInt(0));
   const [userOpGasInfo, setUserOpGasInfo] = React.useState<boolean>(false);
-
+  const [transactionGasInfo, setTransactionGasInfo] =
+    React.useState<boolean>(false);
   const [buttonDisabled, setButtonDisabled] = React.useState<boolean>(false);
 
   // --------------------
@@ -182,7 +187,9 @@ export const WebauthnHardhatAccountAbstraction = () => {
         setAccountEthEntryPointBalance(BigInt(0));
         setAccountUsdcBalance(BigInt(0));
         setReceiverEthBalance(BigInt(0));
+        setReceiverEthBalanceDiff(BigInt(0));
         setReceiverUsdcBalance(BigInt(0));
+        setReceiverUsdcBalanceDiff(BigInt(0));
         setBundlerOwnerEthDiff(BigInt(0));
         setBundlerOwnerEthBalance(BigInt(0));
       }
@@ -232,7 +239,17 @@ export const WebauthnHardhatAccountAbstraction = () => {
           );
         }
         setAccountEthEntryPointBalance(getAccountDepositsResponse[0]);
+        if (getReceiverEthResponse !== receiverEthBalance) {
+          setReceiverEthBalanceDiff(
+            getReceiverEthResponse - receiverEthBalance
+          );
+        }
         setReceiverEthBalance(getReceiverEthResponse);
+        if (getReceiverUsdcResponse !== receiverUsdcBalance) {
+          setReceiverUsdcBalanceDiff(
+            getReceiverUsdcResponse - receiverUsdcBalance
+          );
+        }
         setReceiverUsdcBalance(getReceiverUsdcResponse);
         if (getBundlerOwnerEthResponse !== bundlerOwnerEthBalance) {
           setBundlerOwnerEthDiff(
@@ -958,9 +975,52 @@ export const WebauthnHardhatAccountAbstraction = () => {
     // ...
   }, handleGetPasskeyDepList);
 
-  // ------------
-  // --- Form ---
-  // ------------
+  // ----------------
+  // --- Gas Form ---
+  // ----------------
+
+  const formTransactionGasInfo = () => {
+    return (
+      <>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            gasUsed
+          </span>
+          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${gasUsed}`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            maxFeePerGas
+          </span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${maxFeePerGas} Wei`}</span>
+          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x gasUsed = ${Ethers.formatEther(
+            gasUsed * maxFeePerGas
+          )} ETH`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            maxPriorityFeePerGas
+          </span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${maxPriorityFeePerGas} Wei`}</span>
+          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x gasUsed = ${Ethers.formatEther(
+            gasUsed * maxPriorityFeePerGas
+          )} ETH`}</span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <div className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            <p>gasPrice</p>
+            <p className="text-amber-500">(Bundler paid)</p>
+          </div>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${gasPrice} Wei`}</span>
+          <div className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            <span className="text-amber-500">{`x gasUsed = ${Ethers.formatEther(
+              gasUsed * gasPrice
+            )} ETH`}</span>
+          </div>
+        </div>
+      </>
+    );
+  };
 
   const formUserOpGasInfo = () => {
     return (
@@ -1073,6 +1133,7 @@ export const WebauthnHardhatAccountAbstraction = () => {
     authAttachChecked,
     authAttach,
     userOpGasInfo,
+    transactionGasInfo,
   ];
 
   const handleInputChange = React.useCallback(
@@ -1099,6 +1160,14 @@ export const WebauthnHardhatAccountAbstraction = () => {
             setAuthAttach("cross-platform");
           }
           break;
+        case InputId[InputId.transactionGasInfo]:
+          if (value === `${true}`) {
+            setTransactionGasInfo(false);
+          }
+          if (value === `${false}`) {
+            setTransactionGasInfo(true);
+          }
+          break;
         case InputId[InputId.userOpGasInfo]:
           if (value === `${true}`) {
             setUserOpGasInfo(false);
@@ -1117,22 +1186,26 @@ export const WebauthnHardhatAccountAbstraction = () => {
     handleInputChangeDepList
   );
 
-  const handleSelectChangeDepList: React.DependencyList = [];
+  //   const handleSelectChangeDepList: React.DependencyList = [];
 
-  const handleSelectChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>) => {
-      // 更新 Select value
-      const { id, value } = event.target;
-      switch (id) {
-        default:
-          break;
-      }
-      console.log(`Select: ${id} = ${value}`);
+  //   const handleSelectChange = React.useCallback(
+  //     (event: React.ChangeEvent<HTMLSelectElement>) => {
+  //       // 更新 Select value
+  //       const { id, value } = event.target;
+  //       switch (id) {
+  //         default:
+  //           break;
+  //       }
+  //       console.log(`Select: ${id} = ${value}`);
 
-      // ...
-    },
-    handleSelectChangeDepList
-  );
+  //       // ...
+  //     },
+  //     handleSelectChangeDepList
+  //   );
+
+  // ----------------------
+  // --- Rendering Area ---
+  // ----------------------
 
   return (
     <>
@@ -1246,18 +1319,25 @@ export const WebauthnHardhatAccountAbstraction = () => {
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             Receiver ETH Balance
           </span>
-          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatEther(
             receiverEthBalance
           )} ETH`}</span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`(+ ${Ethers.formatEther(
+            receiverEthBalanceDiff
+          )} ETH)`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
             Receiver USDC Balance
           </span>
-          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${Ethers.formatUnits(
             receiverUsdcBalance,
             usdcDecimals
           )} USDC`}</span>
+          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`(+ ${Ethers.formatUnits(
+            receiverUsdcBalanceDiff,
+            usdcDecimals
+          )} USDC)`}</span>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-emerald-500">
@@ -1269,42 +1349,6 @@ export const WebauthnHardhatAccountAbstraction = () => {
           <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base text-emerald-500">{`(+ ${Ethers.formatEther(
             bundlerOwnerEthDiff
           )} ETH)`}</span>
-        </div>
-        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            gasUsed
-          </span>
-          <span className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base">{`${gasUsed}`}</span>
-        </div>
-        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            maxFeePerGas
-          </span>
-          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${maxFeePerGas} Wei`}</span>
-          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x gasUsed = ${Ethers.formatEther(
-            gasUsed * maxFeePerGas
-          )} ETH`}</span>
-        </div>
-        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            maxPriorityFeePerGas
-          </span>
-          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${maxPriorityFeePerGas} Wei`}</span>
-          <span className="order-3 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`x gasUsed = ${Ethers.formatEther(
-            gasUsed * maxPriorityFeePerGas
-          )} ETH`}</span>
-        </div>
-        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
-          <div className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            <p>gasPrice</p>
-            <p className="text-amber-500">(Bundler paid)</p>
-          </div>
-          <span className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">{`${gasPrice} Wei`}</span>
-          <div className="order-2 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            <span className="text-amber-500">{`x gasUsed = ${Ethers.formatEther(
-              gasUsed * gasPrice
-            )} ETH`}</span>
-          </div>
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <button
@@ -1330,6 +1374,20 @@ export const WebauthnHardhatAccountAbstraction = () => {
           </button>
         </div>
         <div className="m-auto p-3 border-2 border-cyan-500 rounded-lg">
+          <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+            <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+              Transaction Gas Info
+            </span>
+            <input
+              type="checkbox"
+              id={`${InputId[InputId.transactionGasInfo]}`}
+              value={`${transactionGasInfo}`}
+              checked={transactionGasInfo}
+              onChange={handleInputChange}
+              className="order-2 w-4/6 m-auto p-3 border-0 rounded-lg text-base"
+            ></input>
+          </div>
+          {transactionGasInfo && formTransactionGasInfo()}
           <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
             <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
               UserOp Gas Info (Beta)
