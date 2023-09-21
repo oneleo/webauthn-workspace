@@ -14,9 +14,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
     <WebauthnLocal.WebauthnLocal />
-    {/* <WebauthnLocalExtension.WebauthnLocalExtension /> */}
+    {/* <WebauthnLocalExtension.WebauthnLocalExtension />
     <WebauthnHardhat.WebauthnHardhat />
-    <WebauthnCreateGetHardhat.WebauthnCreateGetHardhat />
+    <WebauthnCreateGetHardhat.WebauthnCreateGetHardhat /> */}
     <WebauthnHardhatAccountAbstraction.WebauthnHardhatAccountAbstraction />
     {/* <WebauthnOnchainAccountAbstraction.WebauthnOnchainAccountAbstraction /> */}
   </React.StrictMode>

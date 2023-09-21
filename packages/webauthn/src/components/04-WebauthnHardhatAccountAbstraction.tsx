@@ -787,6 +787,7 @@ export const WebauthnHardhatAccountAbstraction = () => {
         [executeArgs[0].dest],
         [executeArgs[0].func],
       ]),
+
       // callData: accountInterface.encodeFunctionData("execute", [
       //   executeArgs[1].dest,
       //   executeArgs[1].value,
@@ -1211,7 +1212,7 @@ export const WebauthnHardhatAccountAbstraction = () => {
     <>
       <div className="w-5/6 m-auto p-3 border-2 border-yellow-500 rounded-lg">
         <h1 className="text-3xl font-bold underline">
-          4. WebAuthN Hardhat Account Abstraction
+          2. WebAuthN Hardhat Account Abstraction
         </h1>
         <h2 className="text-2xl font-bold">Create Passkey</h2>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
@@ -1356,7 +1357,7 @@ export const WebauthnHardhatAccountAbstraction = () => {
             disabled={buttonDisabled}
             className="order-1 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
           >
-            Create Passkey
+            Initial Account
           </button>
           <button
             onClick={handleAddPasskeyToContract}
@@ -1370,8 +1371,19 @@ export const WebauthnHardhatAccountAbstraction = () => {
             disabled={buttonDisabled}
             className="order-2 w-1/4 m-auto p-3 border-0 rounded-lg text-base"
           >
-            Get Passkey
+            Authorize Passkey
           </button>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-1/4 m-auto p-3 border-0 rounded-lg text-base">
+            = deploy AA + create passkey + add passkey
+          </span>
+          <span className="order-2 w-1/4 m-auto p-3 border-0 rounded-lg text-base">
+            = create passkey + add passkey
+          </span>
+          <span className="order-3 w-1/4 m-auto p-3 border-0 rounded-lg text-base">
+            = authorize specified passkey
+          </span>
         </div>
         <div className="m-auto p-3 border-2 border-cyan-500 rounded-lg">
           <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
