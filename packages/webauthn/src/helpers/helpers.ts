@@ -752,6 +752,7 @@ export const getPasskey = async (
           },
         }
       : {}),
+    rpId: defaultPasskey.rpId,
     userVerification: defaultPasskey.userVerificationRequirement,
     challenge: _challengeBase64,
   } as WebauthnTypes.PublicKeyCredentialRequestOptionsJSON);
