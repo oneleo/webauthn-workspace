@@ -16,9 +16,9 @@
 
 ```
 % PKG1="contracts"
-% cp package/${PKG1}/.env.example package/${PKG1}/.env
+% cp packages/${PKG1}/.env.example packages/${PKG1}/.env
 
-% code package/${PKG1}/.env
+% code packages/${PKG1}/.env
 ```
 
 - Start Hardhat node
@@ -34,8 +34,8 @@
 
 ```
 % PKG2="webauthn"
-% cp package/${PKG2}/.env.example package/${PKG2}/.env
-% code package/${PKG2}/.env
+% cp packages/${PKG2}/.env.example packages/${PKG2}/.env
+% code packages/${PKG2}/.env
 ```
 
 - Start React node
