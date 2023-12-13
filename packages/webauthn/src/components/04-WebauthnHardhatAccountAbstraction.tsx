@@ -864,10 +864,36 @@ export const WebauthnHardhatAccountAbstraction = () => {
 
     const signatureSHex = `0x${Helpers.isoUint8Array.toHex(parsedSignature.s)}`;
 
-    const signatureSUint256 = abi.decode(
+    let signatureSUint256 = abi.decode(
       ["uint256"],
       abi.encode(["bytes32"], [signatureSHex])
     )[0] as bigint;
+
+    // If your library generates malleable signatures, such as s-values in the upper range, calculate a new s-value
+    // with 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551 - s1 or vice versa.
+    // P-256 (SECP256R1) Parameters:
+    // p = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
+    // a = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC
+    // b = 0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B
+    // x_G = 0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296
+    // y_G = 0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5
+    // n = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+    // h = 0x0000000000000000000000000000000000000000000000000000000000000001
+
+    if (
+      signatureSUint256 >
+      BigInt(
+        "0x7FFFFFFF800000007FFFFFFFFFFFFFFFDE737D56D38BCF4279DCE5617E3192A8"
+      )
+    ) {
+      console.warn(
+        `// [Warning] Non-malleable signatures, replacing old s-value: ${signatureSUint256}`
+      );
+      signatureSUint256 =
+        BigInt(
+          "0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551"
+        ) - signatureSUint256;
+    }
 
     if (debug) {
       console.warn(`+++ Get Passkey +++`);
