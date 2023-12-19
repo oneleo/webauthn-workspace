@@ -45,8 +45,19 @@
 % PKG2="webauthn" && pnpm --filter ${PKG2} dev
 ```
 
-- Open website
+- Open Webauthn website
+
   - [http://localhost:5173/](http://localhost:5173/)
+
+- Start the Passkey decoder
+  > For use with [Passwordless.ID - Webauthn Playground](https://webauthn.passwordless.id/demos/playground.html) website
+
+```
+% PKG3="decoder" && pnpm --filter ${PKG3} dev
+```
+
+- Open Webauthn website
+  - [http://localhost:5174/](http://localhost:5174/)
 
 ## Recourses
 
