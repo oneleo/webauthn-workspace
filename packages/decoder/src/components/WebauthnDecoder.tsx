@@ -2,10 +2,7 @@ import * as Asn1Ecc from "@peculiar/asn1-ecc";
 import * as Asn1Schema from "@peculiar/asn1-schema";
 import * as Ethers from "ethers";
 import * as React from "react";
-import * as WebauthnBrowser from "@simplewebauthn/browser";
 import * as WebauthnHelpers from "@simplewebauthn/server/helpers";
-import * as WebauthnHelpers2 from "@simplewebauthn/server";
-import * as WebauthnTypes from "@simplewebauthn/typescript-types";
 
 const EthersAbi = Ethers.AbiCoder.defaultAbiCoder();
 
@@ -63,8 +60,10 @@ export const WebauthnDecoder = () => {
           break;
         case InputId.attestationData:
           setAttestationDataBase64Url(value.toString());
-          const [credPubKeyXUint256, credPubKeyYUint256] =
+          const [credId, credPubKeyXUint256, credPubKeyYUint256] =
             parseAttestationDataBase64Url(value.toString());
+          setCredentialIdBase64Url(credId);
+          setCredentialIdKeccak256(parseCredentialIdBase64Url(credId));
           setPublicKeyXUint256(credPubKeyXUint256);
           setPublicKeyYUint256(credPubKeyYUint256);
           break;
@@ -119,7 +118,7 @@ export const WebauthnDecoder = () => {
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            credIdKeccak256
+            credentialIdKeccak256
           </span>
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base break-words">
             {`${credentialIdKeccak256}`}
@@ -139,7 +138,15 @@ export const WebauthnDecoder = () => {
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            pubKeyXUint256
+            credentialIdBase64Url
+          </span>
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base break-words">
+            {`${credentialIdBase64Url}`}
+          </span>
+        </div>
+        <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
+          <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
+            publicKeyXUint256
           </span>
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base break-words">
             {`${publicKeyXUint256}`}
@@ -147,7 +154,7 @@ export const WebauthnDecoder = () => {
         </div>
         <div className="flex flex-row justify-center content-center flex-nowrap w-full h-auto">
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base">
-            pubKeyYUint256
+            publicKeyYUint256
           </span>
           <span className="order-1 w-2/6 m-auto p-3 border-0 rounded-lg text-base break-words">
             {`${publicKeyYUint256}`}
@@ -261,10 +268,10 @@ const parseCredentialIdBase64Url = (credIdBase64Url: string): string => {
 
 const parseAttestationDataBase64Url = (
   attestObjBase64Url: string
-): [bigint, bigint] => {
+): [string, bigint, bigint] => {
   if (!WebauthnHelpers.isoBase64URL.isBase64url(attestObjBase64Url)) {
     console.log(`${attestObjBase64Url} is not Base64Url`);
-    return [BigInt(0), BigInt(0)] as const;
+    return ["", BigInt(0), BigInt(0)] as const;
   }
 
   const attestObjUint8Arr =
@@ -274,6 +281,11 @@ const parseAttestationDataBase64Url = (
   const authData = WebauthnHelpers.parseAuthenticatorData(
     decodedAttObj.get("authData")
   );
+  const credIdUint8Arr = authData.credentialID
+    ? authData.credentialID
+    : Uint8Array.from([]);
+  const credIdBase64Url =
+    WebauthnHelpers.isoBase64URL.fromBuffer(credIdUint8Arr);
   const credPubKeyUint8Arr = authData.credentialPublicKey!;
   const credPubKeyObjUint8Arr =
     WebauthnHelpers.convertCOSEtoPKCS(credPubKeyUint8Arr);
@@ -302,7 +314,7 @@ const parseAttestationDataBase64Url = (
     EthersAbi.encode(["bytes32"], [credPubKeyYHex])
   )[0] as bigint;
 
-  return [credPubKeyXUint256, credPubKeyYUint256] as const;
+  return [credIdBase64Url, credPubKeyXUint256, credPubKeyYUint256] as const;
 };
 
 const parseChallengeHex = (challengeHex: string): string => {
